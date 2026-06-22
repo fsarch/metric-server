@@ -1,0 +1,90 @@
+{
+  "name": "metric-server",
+  "version": "0.0.1",
+  "description": "Metric Server for storing and managing metrics with PostgreSQL partitioning",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "build": "fsarch-server build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "fsarch-server start",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "typeorm": "node --loader ts-node/esm ./node_modules/typeorm/cli.js",
+    "entity:create": "npm run typeorm entity:create -n",
+    "migration:run": "npm run typeorm migration:run -- -d ./config/typeorm.js",
+    "migration:generate": "npm run typeorm -- -d ./config/typeorm.js migration:generate ./src/database/migrations/",
+    "migration:create": "npm run typeorm -- migration:create ./src/migrations/$npm_config_name",
+    "migration:revert": "npm run typeorm -- -d ./config/typeorm.js migration:revert"
+  },
+  "dependencies": {
+    "@fsarch/server": "^0.0.5",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/swagger": "^11.4.4",
+    "@nestjs/typeorm": "^11.0.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "joi": "^18.2.3",
+    "jose": "^6.2.3",
+    "js-yaml": "^4.1.0",
+    "pg": "^8.22.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.0.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.1",
+    "serialize-error": "^12.0.0",
+    "typeorm": "^1.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.23",
+    "@nestjs/schematics": "^11.1.0",
+    "@nestjs/testing": "^11.1.27",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.13.2",
+    "@types/supertest": "^7.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
+    "@typescript-eslint/parser": "^8.61.1",
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "jest": "^30.4.2",
+    "prettier": "^3.8.4",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.11",
+    "ts-loader": "^9.6.1",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  }
+}

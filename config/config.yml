@@ -1,0 +1,32 @@
+# Authentication configuration
+auth:
+  type: 'oidc'
+  discovery_url: 'https://login-dev.vb3d.de/realms/VB3D-Dev/.well-known/openid-configuration'
+
+# User Access Control configuration
+uac:
+  type: 'static'
+  users:
+    - user_id: 'abcdef'
+      permissions:
+        - manage_metrics
+        - read_metrics
+        - write_measurements
+
+# Database configuration
+database:
+  type: postgres
+  host: 'localhost'
+  port: 5432
+  database: dev_metric_server
+  username: dev_metric_server
+  password: '123456'
+  ssl:
+    rejectUnauthorized: false
+
+# Partition configuration
+partition:
+  # Size of each partition in days
+  partition_size_days: 30
+  # Warm tier retention in days
+  warm_tier_retention_days: 365
