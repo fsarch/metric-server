@@ -14,11 +14,11 @@ import { Roles } from '@fsarch/server/uac';
 import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagination';
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
-import { MeasurementService } from './measurement.service.js';
-import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
-import { MeasurementDto } from '../../models/measurement/MeasurementDto.js';
-import { AggregateMeasurementsDto } from '../../models/measurement/AggregateMeasurementsDto.js';
-import { Role } from '../../constants/role.enum.js';
+import { MeasurementService } from '../../measurements/measurement.service.js';
+import { CreateMeasurementDto } from '../../../models/measurement/CreateMeasurementDto.js';
+import { MeasurementDto } from '../../../models/measurement/MeasurementDto.js';
+import { AggregateMeasurementsDto } from '../../../models/measurement/AggregateMeasurementsDto.js';
+import { Role } from '../../../constants/role.enum.js';
 
 @ApiBearerAuth()
 @Controller('metrics/:metricId/measurements')
@@ -49,22 +49,18 @@ export class MeasurementController {
   @UseGuards(AuthGuard)
   @Roles(Role.read_metrics)
   @ApiOkPaginatedResponse(MeasurementDto)
-  async queryMeasurementsByMetric(
+  async getLatestMeasurements(
     @Param('metricId') metricId: string,
-    @Query('startTime') startTime?: string,
-    @Query('endTime') endTime?: string,
-    @Query('limit') limit: number = 1000,
+    @Query('limit') limit: number = 100,
     @Query('offset') offset: number = 0,
   ): Promise<PaginationResultDto<MeasurementDto>> {
-    const { data, total } = await this.measurementService.queryMeasurementsByMetric(
+    const measurements = await this.measurementService.getLatestMeasurementsByMetric(
       metricId,
-      startTime ? new Date(startTime) : undefined,
-      endTime ? new Date(endTime) : undefined,
       limit,
-      offset,
+      true, // warmTierOnly
     );
 
-    const result: MeasurementDto[] = data.map((m) => ({
+    const result: MeasurementDto[] = measurements.map((m) => ({
       metricId: m.metricId,
       logTime: m.logTime,
       value: m.value,
@@ -72,10 +68,14 @@ export class MeasurementController {
       isWarmTier: m.isWarmTier,
     }));
 
+    // For latest measurements, we don't have a total count from getLatestMeasurementsByMetric
+    // We'll estimate based on the returned results
+    const total = offset + result.length;
+
     return {
       data: result,
       metadata: {
-        currentPage: 1,
+        currentPage: Math.floor(offset / limit) + 1,
         totalPages: Math.ceil(total / limit),
         pageSize: result.length,
         totalItems: total,
@@ -93,30 +93,5 @@ export class MeasurementController {
     @Body() body: AggregateMeasurementsDto,
   ): Promise<Record<string, number>> {
     return this.measurementService.aggregateMeasurementsByMetric(metricId, body);
-  }
-}
-
-@ApiBearerAuth()
-@Controller('measurements')
-export class BulkMeasurementController {
-  constructor(private readonly measurementService: MeasurementService) {}
-
-  @Post('_actions/bulk')
-  @UseGuards(AuthGuard)
-  @Roles(Role.write_measurements)
-  @ApiBody({ type: [CreateMeasurementDto] })
-  @ApiCreatedResponse({ type: [MeasurementDto] })
-  async createMeasurementsBulk(
-    @Body() bodies: CreateMeasurementDto[],
-  ): Promise<MeasurementDto[]> {
-    const measurements = await this.measurementService.createMeasurements(bodies);
-
-    return measurements.map((m) => ({
-      metricId: m.metricId,
-      logTime: m.logTime,
-      value: m.value,
-      meta: m.meta,
-      isWarmTier: m.isWarmTier,
-    }));
   }
 }

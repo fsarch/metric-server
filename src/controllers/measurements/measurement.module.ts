@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { MeasurementController, BulkMeasurementController } from './measurement.controller.js';
+import { MeasurementController } from './measurement.controller.js';
 import { MeasurementService } from './measurement.service.js';
 import { Measurement } from '../../database/entities/measurement.entity.js';
 import { MeasurementPartition } from '../../database/entities/measurement-partition.entity.js';
@@ -11,7 +11,7 @@ import { ServicesModule } from '../../services/services.module.js';
     TypeOrmModule.forFeature([Measurement, MeasurementPartition]),
     ServicesModule,
   ],
-  controllers: [MeasurementController, BulkMeasurementController],
+  controllers: [MeasurementController],
   providers: [MeasurementService],
   exports: [MeasurementService],
 })
