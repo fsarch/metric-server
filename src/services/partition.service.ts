@@ -135,11 +135,12 @@ export class PartitionService {
         FOR VALUES FROM ('${formatDateForSql(startDate)}') TO ('${formatDateForSql(endDate)}')
       `);
 
-      // Create index on the partition for warm tier data
-      // Note: Partial indexes with WHERE clause need to be created on the partition itself
+      // Create covering index on the partition for warm tier data
+      // INCLUDE (value, meta) makes this a covering index for most queries
       await queryRunner.query(`
-        CREATE INDEX idx_measurement_${partitionName}_metric_id_log_time_warm
+        CREATE INDEX idx_measurement_${partitionName}_covering_warm
         ON measurement_${partitionName} (metric_id, log_time)
+        INCLUDE (value, meta)
         WHERE is_warm_tier = true
       `);
 

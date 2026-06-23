@@ -136,6 +136,16 @@ export class BaseTables1700000000000 implements MigrationInterface {
       FOREIGN KEY (metric_id) REFERENCES metric(id) ON DELETE CASCADE
     `);
 
+    // Create covering index on the partitioned table template
+    // This index will be inherited by all partitions
+    // Note: For covering queries on warm tier data
+    await queryRunner.query(`
+      CREATE INDEX idx__measurement__covering_warm
+      ON measurement (metric_id, log_time)
+      INCLUDE (value, meta)
+      WHERE is_warm_tier = true
+    `);
+
     // Create measurement_partition table with index
     await queryRunner.createTable(
       new Table({

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThan, Between, IsNull, Not } from 'typeorm';
+import { Repository, MoreThan, LessThan, Between } from 'typeorm';
 import { Measurement } from '../../database/entities/measurement.entity.js';
 import { PartitionService } from '../../services/partition.service.js';
 import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
@@ -58,6 +58,17 @@ export class MeasurementService {
 
     const where: Record<string, unknown> = {};
 
+    // Always check warm tier first - this is the most important filter
+    // Default to warm tier only for better performance
+    if (warmTierOnly !== undefined && warmTierOnly === true) {
+      where.isWarmTier = true;
+    } else if (warmTierOnly !== undefined && warmTierOnly === false) {
+      where.isWarmTier = false;
+    } else {
+      // Default: prefer warm tier data
+      where.isWarmTier = true;
+    }
+
     if (metricId) {
       where.metricId = metricId;
     }
@@ -72,12 +83,6 @@ export class MeasurementService {
       } else {
         where.logTime = LessThan(new Date(endTime));
       }
-    }
-
-    if (warmTierOnly !== undefined && warmTierOnly === true) {
-      where.isWarmTier = true;
-    } else if (warmTierOnly !== undefined && warmTierOnly === false) {
-      where.isWarmTier = false;
     }
 
     const [measurements, total] = await this.measurementRepository.findAndCount({
@@ -102,9 +107,17 @@ export class MeasurementService {
   async getLatestMeasurements(
     metricId: string,
     limit: number = 100,
+    warmTierOnly: boolean = true,
   ): Promise<Measurement[]> {
+    const where: Record<string, unknown> = { metricId };
+
+    // Check warm tier first for better performance
+    if (warmTierOnly) {
+      where.isWarmTier = true;
+    }
+
     return this.measurementRepository.find({
-      where: { metricId },
+      where,
       order: { logTime: 'DESC' },
       take: limit,
     });
@@ -121,6 +134,7 @@ export class MeasurementService {
       logTime: Between(startTime, endTime),
     };
 
+    // Check warm tier first for better performance
     if (warmTierOnly) {
       where.isWarmTier = true;
     }
@@ -137,6 +151,7 @@ export class MeasurementService {
     endTime: Date,
     interval: 'hour' | 'day' | 'week' | 'month' = 'hour',
     aggregation: 'avg' | 'sum' | 'min' | 'max' | 'count' = 'avg',
+    warmTierOnly: boolean = true,
   ): Promise<Record<string, number>> {
     // This is a simplified aggregation
     // In a production environment, you would use raw SQL queries
@@ -146,6 +161,7 @@ export class MeasurementService {
       metricId,
       startTime,
       endTime,
+      warmTierOnly,
     );
 
     const aggregated: Record<string, number> = {};
