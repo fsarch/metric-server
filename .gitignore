@@ -45,3 +45,7 @@ pids/
 # TypeORM
 ormconfig.js
 tsconfig.tsbuildinfo
+
+# Config files
+config/*.yml
+config/*.js
