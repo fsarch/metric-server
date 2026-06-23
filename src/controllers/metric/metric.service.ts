@@ -134,7 +134,7 @@ export class MetricService {
 
     return this.metricRepository.find({
       where: query,
-      relations: ['metricType'],
+      relations: { metricType: true },
       order: { name: 'ASC' },
     });
   }
@@ -142,7 +142,7 @@ export class MetricService {
   async getMetric(id: string): Promise<Metric> {
     const metric = await this.metricRepository.findOne({
       where: { id },
-      relations: ['metricType'],
+      relations: { metricType: true },
     });
 
     if (!metric) {
@@ -155,7 +155,7 @@ export class MetricService {
   async getMetricByExternalId(externalId: string): Promise<Metric> {
     const metric = await this.metricRepository.findOne({
       where: { externalId },
-      relations: ['metricType'],
+      relations: { metricType: true },
     });
 
     if (!metric) {
