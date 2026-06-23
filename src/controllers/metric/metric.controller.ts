@@ -20,7 +20,9 @@ import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
 import { MetricTypeDto } from '../../models/metric/MetricTypeDto.js';
 import { MetricDto } from '../../models/metric/MetricDto.js';
 import { Role } from '../../constants/role.enum.js';
+import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from "@nestjs/swagger";
 
+@ApiBearerAuth()
 @Controller('metric-types')
 export class MetricTypeController {
   constructor(private readonly metricService: MetricService) {}
@@ -28,6 +30,8 @@ export class MetricTypeController {
   @Post()
   @UseGuards(AuthGuard)
   @Roles(Role.manage_metrics)
+  @ApiBody({ type: CreateMetricTypeDto })
+  @ApiCreatedResponse({ type: MetricTypeDto })
   async createMetricType(@Body() body: CreateMetricTypeDto): Promise<MetricTypeDto> {
     const metricType = await this.metricService.createMetricType(body);
 
@@ -77,6 +81,7 @@ export class MetricTypeController {
   @Get('/:id')
   @UseGuards(AuthGuard)
   @Roles(Role.read_metrics)
+  @ApiOkResponse({ type: MetricTypeDto })
   async getMetricType(@Param('id') id: string): Promise<MetricTypeDto> {
     const metricType = await this.metricService.getMetricType(id);
 
@@ -107,6 +112,8 @@ export class MetricController {
   @Post()
   @UseGuards(AuthGuard)
   @Roles(Role.manage_metrics)
+  @ApiBody({ type: CreateMetricDto })
+  @ApiCreatedResponse({ type: MetricDto })
   async createMetric(@Body() body: CreateMetricDto): Promise<MetricDto> {
     const metric = await this.metricService.createMetric(body);
 
@@ -159,6 +166,7 @@ export class MetricController {
   @Get('/:id')
   @UseGuards(AuthGuard)
   @Roles(Role.read_metrics)
+  @ApiOkResponse({ type: MetricDto })
   async getMetric(@Param('id') id: string): Promise<MetricDto> {
     const metric = await this.metricService.getMetric(id);
 

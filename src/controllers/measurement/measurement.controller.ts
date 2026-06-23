@@ -12,6 +12,7 @@ import {
 import { AuthGuard } from '@fsarch/server/auth';
 import { Roles } from '@fsarch/server/uac';
 import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagination';
+import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { MeasurementService } from './measurement.service.js';
 import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
@@ -19,6 +20,7 @@ import { MeasurementDto } from '../../models/measurement/MeasurementDto.js';
 import { AggregateMeasurementsDto } from '../../models/measurement/AggregateMeasurementsDto.js';
 import { Role } from '../../constants/role.enum.js';
 
+@ApiBearerAuth()
 @Controller('metrics/:metricId/measurements')
 export class MeasurementController {
   constructor(private readonly measurementService: MeasurementService) {}
@@ -26,6 +28,8 @@ export class MeasurementController {
   @Post()
   @UseGuards(AuthGuard)
   @Roles(Role.write_measurements)
+  @ApiBody({ type: CreateMeasurementDto })
+  @ApiCreatedResponse({ type: MeasurementDto })
   async createMeasurement(
     @Param('metricId') metricId: string,
     @Body() body: Omit<CreateMeasurementDto, 'metricId'>,
@@ -82,6 +86,8 @@ export class MeasurementController {
   @Post('_actions/aggregate')
   @UseGuards(AuthGuard)
   @Roles(Role.read_metrics)
+  @ApiBody({ type: AggregateMeasurementsDto })
+  @ApiOkResponse({ type: Object })
   async aggregateMeasurements(
     @Param('metricId') metricId: string,
     @Body() body: AggregateMeasurementsDto,
@@ -90,6 +96,7 @@ export class MeasurementController {
   }
 }
 
+@ApiBearerAuth()
 @Controller('measurements')
 export class BulkMeasurementController {
   constructor(private readonly measurementService: MeasurementService) {}
@@ -97,6 +104,8 @@ export class BulkMeasurementController {
   @Post('_actions/bulk')
   @UseGuards(AuthGuard)
   @Roles(Role.write_measurements)
+  @ApiBody({ type: [CreateMeasurementDto] })
+  @ApiCreatedResponse({ type: [MeasurementDto] })
   async createMeasurementsBulk(
     @Body() bodies: CreateMeasurementDto[],
   ): Promise<MeasurementDto[]> {
