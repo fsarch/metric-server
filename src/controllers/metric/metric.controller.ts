@@ -105,6 +105,7 @@ export class MetricTypeController {
   }
 }
 
+@ApiBearerAuth()
 @Controller('metrics')
 export class MetricController {
   constructor(private readonly metricService: MetricService) {}
