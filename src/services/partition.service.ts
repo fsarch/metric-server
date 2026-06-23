@@ -1,11 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, LessThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { MeasurementPartition } from '../database/entities/measurement-partition.entity.js';
 
 @Injectable()
-export class PartitionService implements OnModuleInit {
+export class PartitionService {
   private readonly logger = new Logger(PartitionService.name);
   private partitionSizeDays: number;
   private warmTierRetentionDays: number;
@@ -23,47 +23,6 @@ export class PartitionService implements OnModuleInit {
       this.configService.get<string>('partition.warm_tier_retention_days') ||
         '365',
     );
-  }
-
-  async onModuleInit() {
-    // Initialize the measurement table as a partitioned table
-    await this.initializePartitionedTable();
-  }
-
-  /**
-   * Initializes the measurement table as a partitioned table
-   */
-  private async initializePartitionedTable(): Promise<void> {
-    const queryRunner = this.dataSource.createQueryRunner();
-
-    try {
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
-
-      // Check if the measurement table is already partitioned
-      const { rows } = await queryRunner.query(`
-        SELECT relispartition FROM pg_class WHERE relname = 'measurement'
-      `);
-
-      if (rows.length === 0 || !rows[0].relispartition) {
-        // Convert the measurement table to a partitioned table
-        await queryRunner.query(`
-          ALTER TABLE measurement PARTITION BY RANGE (log_time)
-        `);
-
-        this.logger.log('Converted measurement table to partitioned table');
-      }
-
-      await queryRunner.commitTransaction();
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Failed to initialize partitioned table: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
   }
 
   /**

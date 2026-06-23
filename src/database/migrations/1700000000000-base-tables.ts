@@ -87,51 +87,25 @@ export class BaseTables1700000000000 implements MigrationInterface {
       }),
     );
 
-    // Create measurement table with partitioning
-    await queryRunner.createTable(
-      new Table({
-        name: 'measurement',
-        columns: [
-          {
-            name: 'metric_id',
-            type: 'uuid',
-            isPrimary: true,
-          },
-          {
-            name: 'log_time',
-            type: getDataType(databaseType, 'timestamp'),
-            isPrimary: true,
-          },
-          {
-            name: 'value',
-            type: getDataType(databaseType, 'decimal'),
-            precision: '20',
-            scale: '10',
-            isNullable: false,
-          },
-          {
-            name: 'meta',
-            type: 'json',
-            isNullable: true,
-            default: null,
-          },
-          {
-            name: 'is_warm_tier',
-            type: getDataType(databaseType, 'boolean'),
-            default: true,
-          },
-        ],
-        foreignKeys: [
-          {
-            columnNames: ['metric_id'],
-            referencedTableName: 'metric',
-            referencedColumnNames: ['id'],
-            name: 'fk__measurement__metric',
-            onDelete: 'CASCADE',
-          },
-        ],
-      }),
-    );
+    // Create measurement table as a partitioned table using raw SQL
+    // This creates the table as a partitioned table by range on log_time
+    await queryRunner.query(`
+      CREATE TABLE measurement (
+        metric_id UUID NOT NULL,
+        log_time TIMESTAMPTZ NOT NULL,
+        value DECIMAL(20,10) NOT NULL,
+        meta JSON NULL,
+        is_warm_tier BOOLEAN DEFAULT true,
+        PRIMARY KEY (metric_id, log_time)
+      ) PARTITION BY RANGE (log_time)
+    `);
+
+    // Add foreign key constraint
+    await queryRunner.query(`
+      ALTER TABLE measurement 
+      ADD CONSTRAINT fk__measurement__metric 
+      FOREIGN KEY (metric_id) REFERENCES metric(id) ON DELETE CASCADE
+    `);
 
     // Create measurement_partition table
     await queryRunner.createTable(
@@ -154,16 +128,6 @@ export class BaseTables1700000000000 implements MigrationInterface {
             default: true,
           },
         ],
-      }),
-    );
-
-    // Create index on measurement for warm tier data
-    await queryRunner.createIndex(
-      new TableIndex({
-        name: 'idx__measurement__metric_id_log_time_warm_tier',
-        tableName: 'measurement',
-        columnNames: ['metric_id', 'log_time'],
-        where: 'is_warm_tier = true',
       }),
     );
 
@@ -212,10 +176,6 @@ export class BaseTables1700000000000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.dropIndex(
-      'measurement',
-      'idx__measurement__metric_id_log_time_warm_tier',
-    );
-    await queryRunner.dropIndex(
       'metric_type',
       'idx__metric_type__external_id',
     );
@@ -230,6 +190,21 @@ export class BaseTables1700000000000 implements MigrationInterface {
     );
 
     await queryRunner.dropTable('measurement_partition');
+
+    // For partitioned tables, we need to drop all partitions first
+    // Get all partitions
+    const partitions = await queryRunner.query(`
+      SELECT relname FROM pg_class 
+      WHERE relname LIKE 'measurement_%' AND relkind = 'r'
+    `);
+
+    // Drop all partitions
+    for (const partition of partitions) {
+      await queryRunner.query(`
+        DROP TABLE IF EXISTS ${partition.relname} CASCADE
+      `);
+    }
+
     await queryRunner.dropTable('measurement');
     await queryRunner.dropTable('metric');
     await queryRunner.dropTable('metric_type');
