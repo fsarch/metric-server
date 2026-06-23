@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, Table } from 'typeorm';
 import { getDataType } from './utils/data-type.mapper.js';
 
 export class BaseTables1700000000000 implements MigrationInterface {
@@ -14,7 +14,7 @@ export class BaseTables1700000000000 implements MigrationInterface {
       );
     }
 
-    // Create metric_type table
+    // Create metric_type table with index
     await queryRunner.createTable(
       new Table({
         name: 'metric_type',
@@ -44,10 +44,18 @@ export class BaseTables1700000000000 implements MigrationInterface {
             default: 'now()',
           },
         ],
+        indices: [
+          {
+            name: 'idx__metric_type__external_id',
+            columnNames: ['external_id'],
+            isUnique: true,
+            where: 'external_id IS NOT NULL',
+          },
+        ],
       }),
     );
 
-    // Create metric table
+    // Create metric table with indices
     await queryRunner.createTable(
       new Table({
         name: 'metric',
@@ -91,6 +99,20 @@ export class BaseTables1700000000000 implements MigrationInterface {
             onDelete: 'CASCADE',
           },
         ],
+        indices: [
+          {
+            name: 'idx__metric__external_id',
+            columnNames: ['external_id'],
+            isUnique: true,
+            where: 'external_id IS NOT NULL',
+          },
+          {
+            name: 'idx__metric__metric_type_id_external_id',
+            columnNames: ['metric_type_id', 'external_id'],
+            isUnique: true,
+            where: 'external_id IS NOT NULL',
+          },
+        ],
       }),
     );
 
@@ -114,7 +136,7 @@ export class BaseTables1700000000000 implements MigrationInterface {
       FOREIGN KEY (metric_id) REFERENCES metric(id) ON DELETE CASCADE
     `);
 
-    // Create measurement_partition table
+    // Create measurement_partition table with index
     await queryRunner.createTable(
       new Table({
         name: 'measurement_partition',
@@ -135,48 +157,12 @@ export class BaseTables1700000000000 implements MigrationInterface {
             default: true,
           },
         ],
-      }),
-    );
-
-    // Create index on metric_type external_id
-    await queryRunner.createIndex(
-      new TableIndex({
-        name: 'idx__metric_type__external_id',
-        tableName: 'metric_type',
-        columnNames: ['external_id'],
-        isUnique: true,
-        where: 'external_id IS NOT NULL',
-      }),
-    );
-
-    // Create index on metric external_id
-    await queryRunner.createIndex(
-      new TableIndex({
-        name: 'idx__metric__external_id',
-        tableName: 'metric',
-        columnNames: ['external_id'],
-        isUnique: true,
-        where: 'external_id IS NOT NULL',
-      }),
-    );
-
-    // Create index on metric type_id and external_id
-    await queryRunner.createIndex(
-      new TableIndex({
-        name: 'idx__metric__metric_type_id_external_id',
-        tableName: 'metric',
-        columnNames: ['metric_type_id', 'external_id'],
-        isUnique: true,
-        where: 'external_id IS NOT NULL',
-      }),
-    );
-
-    // Create index on measurement_partition for range queries
-    await queryRunner.createIndex(
-      new TableIndex({
-        name: 'idx__measurement_partition__start_date_end_date',
-        tableName: 'measurement_partition',
-        columnNames: ['start_date', 'end_date'],
+        indices: [
+          {
+            name: 'idx__measurement_partition__start_date_end_date',
+            columnNames: ['start_date', 'end_date'],
+          },
+        ],
       }),
     );
   }
@@ -190,20 +176,6 @@ export class BaseTables1700000000000 implements MigrationInterface {
         'This migration only supports PostgreSQL database. Partitioning features are PostgreSQL-specific.',
       );
     }
-
-    await queryRunner.dropIndex(
-      'metric_type',
-      'idx__metric_type__external_id',
-    );
-    await queryRunner.dropIndex('metric', 'idx__metric__external_id');
-    await queryRunner.dropIndex(
-      'metric',
-      'idx__metric__metric_type_id_external_id',
-    );
-    await queryRunner.dropIndex(
-      'measurement_partition',
-      'idx__measurement_partition__start_date_end_date',
-    );
 
     await queryRunner.dropTable('measurement_partition');
 
