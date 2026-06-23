@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { MetricModule } from './metric/metric.module.js';
-import { MetricMeasurementsModule } from './metric/measurements/measurement.module.js';
-import { MetricTypeModule } from './metric-type/metric-type.module.js';
+import { MetricModule } from './metrics/metric.module.js';
+import { MetricMeasurementsModule } from './metrics/metric-measurements/measurement.module.js';
+import { MetricTypeModule } from './metric-types/metric-type.module.js';
 import { MeasurementModule } from './measurements/measurement.module.js';
 
 @Module({

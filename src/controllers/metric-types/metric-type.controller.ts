@@ -15,7 +15,7 @@ import { Roles } from '@fsarch/server/uac';
 import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagination';
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
-import { MetricService } from '../metric/metric.service.js';
+import { MetricService } from '../metrics/metric.service.js';
 import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
 import { MetricTypeDto } from '../../models/metric/MetricTypeDto.js';
 import { Role } from '../../constants/role.enum.js';
