@@ -160,6 +160,28 @@ This document captures all functional and technical requirements for the metric-
 - Time range filtering: Use `startTime` and `endTime` query parameters
 - Pagination: Support `limit` and `offset` parameters
 
+### TypeORM Query Results
+When using `queryRunner.query()` with PostgreSQL, handle query results safely:
+- Query results may return `{ rows: [...] }` or just the array depending on the driver
+- **Always use optional chaining** to prevent undefined errors:
+
+```typescript
+// Safe approach
+const result = await queryRunner.query(`SELECT ...`);
+return (result?.rows?.length ?? 0) > 0;
+
+// For arrays
+return (result?.rows ?? []).map((row) => row.column);
+```
+
+**Never use destructuring directly** as it may fail if `rows` is undefined:
+
+```typescript
+// UNSAFE - may throw "Cannot read properties of undefined"
+const { rows } = await queryRunner.query(`SELECT ...`);
+return rows.length > 0;
+```
+
 ---
 
 ## OpenAPI/Swagger Requirements

@@ -100,11 +100,11 @@ export class PartitionService {
     try {
       await queryRunner.connect();
 
-      const { rows } = await queryRunner.query(`
+      const result = await queryRunner.query(`
         SELECT 1 FROM pg_class WHERE relname = 'measurement_${partitionName}'
       `);
 
-      return rows.length > 0;
+      return (result?.rows?.length ?? 0) > 0;
     } finally {
       await queryRunner.release();
     }
@@ -243,14 +243,14 @@ export class PartitionService {
     try {
       await queryRunner.connect();
 
-      const { rows } = await queryRunner.query(`
+      const result = await queryRunner.query(`
         SELECT relname FROM pg_class 
         WHERE relname LIKE 'measurement_%' 
         AND relkind = 'r'
         ORDER BY relname
       `);
 
-      return rows.map((row) => row.relname);
+      return (result?.rows ?? []).map((row) => row.relname);
     } finally {
       await queryRunner.release();
     }

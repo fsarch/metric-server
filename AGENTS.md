@@ -178,6 +178,23 @@ Use `PartitionService` to:
 - Check if data belongs to warm or cold tier
 - Manage partition lifecycle
 
+### TypeORM Query Safety
+
+When using raw SQL queries with TypeORM's `queryRunner.query()`, **always handle results safely**:
+
+```typescript
+// SAFE: Use optional chaining for query results
+const result = await queryRunner.query(`SELECT 1 FROM table WHERE ...`);
+const hasResults = (result?.rows?.length ?? 0) > 0;
+const data = (result?.rows ?? []).map(r => r.column);
+
+// UNSAFE: Direct destructuring may throw if rows is undefined
+const { rows } = await queryRunner.query(`SELECT ...`);  // ❌ May throw
+return rows.length > 0;  // ❌ TypeError: Cannot read properties of undefined
+```
+
+Different database drivers may return query results in different formats. Always use defensive programming.
+
 ---
 
 ## Naming Summary
