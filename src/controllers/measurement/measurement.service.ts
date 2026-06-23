@@ -4,7 +4,7 @@ import { Repository, MoreThan, LessThan, Between } from 'typeorm';
 import { Measurement } from '../../database/entities/measurement.entity.js';
 import { PartitionService } from '../../services/partition.service.js';
 import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
-import { QueryMeasurementsDto } from '../../models/measurement/QueryMeasurementsDto.js';
+import { AggregateMeasurementsDto } from '../../models/measurement/AggregateMeasurementsDto.js';
 
 @Injectable()
 export class MeasurementService {
@@ -16,20 +16,21 @@ export class MeasurementService {
     private readonly partitionService: PartitionService,
   ) {}
 
-  async createMeasurement(dto: CreateMeasurementDto): Promise<Measurement> {
+  async createMeasurement(
+    metricId: string,
+    dto: Omit<CreateMeasurementDto, 'metricId'>,
+  ): Promise<Measurement> {
     const logTime = new Date(dto.logTime);
 
     // Ensure partition exists for this date
     await this.partitionService.ensurePartitionForDate(logTime);
 
     // Determine warm tier status based on configuration
-    // If isWarmTier is explicitly set, use that value
-    // Otherwise, use the partition's warm tier status
     const partition = await this.partitionService.getPartitionForDate(logTime);
     const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partition?.isWarmTier ?? true;
 
     const measurement = this.measurementRepository.create({
-      metricId: dto.metricId,
+      metricId,
       logTime,
       value: dto.value,
       meta: dto.meta ?? null,
@@ -43,45 +44,42 @@ export class MeasurementService {
     const measurements: Measurement[] = [];
 
     for (const dto of dtos) {
-      const measurement = await this.createMeasurement(dto);
+      const measurement = await this.createMeasurement(dto.metricId, dto);
       measurements.push(measurement);
     }
 
     return measurements;
   }
 
-  async queryMeasurements(query: QueryMeasurementsDto): Promise<{
+  async queryMeasurementsByMetric(
+    metricId: string,
+    startTime?: Date,
+    endTime?: Date,
+    limit: number = 1000,
+    offset: number = 0,
+    warmTierOnly: boolean = true,
+  ): Promise<{
     data: Measurement[];
     total: number;
   }> {
-    const { metricId, startTime, endTime, warmTierOnly, limit = 1000, offset = 0 } = query;
-
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      metricId,
+    };
 
     // Always check warm tier first - this is the most important filter
-    // Default to warm tier only for better performance
-    if (warmTierOnly !== undefined && warmTierOnly === true) {
+    if (warmTierOnly) {
       where.isWarmTier = true;
-    } else if (warmTierOnly !== undefined && warmTierOnly === false) {
-      where.isWarmTier = false;
-    } else {
-      // Default: prefer warm tier data
-      where.isWarmTier = true;
-    }
-
-    if (metricId) {
-      where.metricId = metricId;
     }
 
     if (startTime) {
-      where.logTime = MoreThan(new Date(startTime));
+      where.logTime = MoreThan(startTime);
     }
 
     if (endTime) {
       if (where.logTime) {
-        where.logTime = Between(new Date(startTime), new Date(endTime));
+        where.logTime = Between(startTime, endTime);
       } else {
-        where.logTime = LessThan(new Date(endTime));
+        where.logTime = LessThan(endTime);
       }
     }
 
@@ -95,21 +93,14 @@ export class MeasurementService {
     return { data: measurements, total };
   }
 
-  async getMeasurement(metricId: string, logTime: Date): Promise<Measurement | null> {
-    return this.measurementRepository.findOne({
-      where: {
-        metricId,
-        logTime,
-      },
-    });
-  }
-
-  async getLatestMeasurements(
+  async getLatestMeasurementsByMetric(
     metricId: string,
     limit: number = 100,
     warmTierOnly: boolean = true,
   ): Promise<Measurement[]> {
-    const where: Record<string, unknown> = { metricId };
+    const where: Record<string, unknown> = {
+      metricId,
+    };
 
     // Check warm tier first for better performance
     if (warmTierOnly) {
@@ -123,44 +114,16 @@ export class MeasurementService {
     });
   }
 
-  async getMeasurementsInRange(
+  async aggregateMeasurementsByMetric(
     metricId: string,
-    startTime: Date,
-    endTime: Date,
-    warmTierOnly: boolean = true,
-  ): Promise<Measurement[]> {
-    const where: Record<string, unknown> = {
-      metricId,
-      logTime: Between(startTime, endTime),
-    };
-
-    // Check warm tier first for better performance
-    if (warmTierOnly) {
-      where.isWarmTier = true;
-    }
-
-    return this.measurementRepository.find({
-      where,
-      order: { logTime: 'ASC' },
-    });
-  }
-
-  async aggregateMeasurements(
-    metricId: string,
-    startTime: Date,
-    endTime: Date,
-    interval: 'hour' | 'day' | 'week' | 'month' = 'hour',
-    aggregation: 'avg' | 'sum' | 'min' | 'max' | 'count' = 'avg',
-    warmTierOnly: boolean = true,
+    dto: AggregateMeasurementsDto,
   ): Promise<Record<string, number>> {
-    // This is a simplified aggregation
-    // In a production environment, you would use raw SQL queries
-    // or a time-series database for better performance
+    const { startTime, endTime, interval, aggregation, warmTierOnly } = dto;
 
     const measurements = await this.getMeasurementsInRange(
       metricId,
-      startTime,
-      endTime,
+      new Date(startTime),
+      new Date(endTime),
       warmTierOnly,
     );
 
@@ -200,6 +163,36 @@ export class MeasurementService {
     }
 
     return aggregated;
+  }
+
+  async getMeasurement(metricId: string, logTime: Date): Promise<Measurement | null> {
+    return this.measurementRepository.findOne({
+      where: {
+        metricId,
+        logTime,
+      },
+    });
+  }
+
+  async getMeasurementsInRange(
+    metricId: string,
+    startTime: Date,
+    endTime: Date,
+    warmTierOnly: boolean = true,
+  ): Promise<Measurement[]> {
+    const where: Record<string, unknown> = {
+      metricId,
+      logTime: Between(startTime, endTime),
+    };
+
+    if (warmTierOnly) {
+      where.isWarmTier = true;
+    }
+
+    return this.measurementRepository.find({
+      where,
+      order: { logTime: 'ASC' },
+    });
   }
 
   private getIntervalKey(date: Date, interval: string): string {

@@ -16,10 +16,10 @@ import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagi
 import { MeasurementService } from './measurement.service.js';
 import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
 import { MeasurementDto } from '../../models/measurement/MeasurementDto.js';
-import { QueryMeasurementsDto } from '../../models/measurement/QueryMeasurementsDto.js';
+import { AggregateMeasurementsDto } from '../../models/measurement/AggregateMeasurementsDto.js';
 import { Role } from '../../constants/role.enum.js';
 
-@Controller('measurements')
+@Controller('metrics/:metricId/measurements')
 export class MeasurementController {
   constructor(private readonly measurementService: MeasurementService) {}
 
@@ -27,9 +27,10 @@ export class MeasurementController {
   @UseGuards(AuthGuard)
   @Roles(Role.write_measurements)
   async createMeasurement(
-    @Body() body: CreateMeasurementDto,
+    @Param('metricId') metricId: string,
+    @Body() body: Omit<CreateMeasurementDto, 'metricId'>,
   ): Promise<MeasurementDto> {
-    const measurement = await this.measurementService.createMeasurement(body);
+    const measurement = await this.measurementService.createMeasurement(metricId, body);
 
     return {
       metricId: measurement.metricId,
@@ -40,7 +41,60 @@ export class MeasurementController {
     };
   }
 
-  @Post('bulk')
+  @Get()
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_metrics)
+  @ApiOkPaginatedResponse(MeasurementDto)
+  async queryMeasurementsByMetric(
+    @Param('metricId') metricId: string,
+    @Query('startTime') startTime?: string,
+    @Query('endTime') endTime?: string,
+    @Query('limit') limit: number = 1000,
+    @Query('offset') offset: number = 0,
+  ): Promise<PaginationResultDto<MeasurementDto>> {
+    const { data, total } = await this.measurementService.queryMeasurementsByMetric(
+      metricId,
+      startTime ? new Date(startTime) : undefined,
+      endTime ? new Date(endTime) : undefined,
+      limit,
+      offset,
+    );
+
+    const result: MeasurementDto[] = data.map((m) => ({
+      metricId: m.metricId,
+      logTime: m.logTime,
+      value: m.value,
+      meta: m.meta,
+      isWarmTier: m.isWarmTier,
+    }));
+
+    return {
+      data: result,
+      metadata: {
+        currentPage: 1,
+        totalPages: Math.ceil(total / limit),
+        pageSize: result.length,
+        totalItems: total,
+      },
+    };
+  }
+
+  @Post('_actions/aggregate')
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_metrics)
+  async aggregateMeasurements(
+    @Param('metricId') metricId: string,
+    @Body() body: AggregateMeasurementsDto,
+  ): Promise<Record<string, number>> {
+    return this.measurementService.aggregateMeasurementsByMetric(metricId, body);
+  }
+}
+
+@Controller('measurements')
+export class BulkMeasurementController {
+  constructor(private readonly measurementService: MeasurementService) {}
+
+  @Post('_actions/bulk')
   @UseGuards(AuthGuard)
   @Roles(Role.write_measurements)
   async createMeasurementsBulk(
@@ -55,77 +109,5 @@ export class MeasurementController {
       meta: m.meta,
       isWarmTier: m.isWarmTier,
     }));
-  }
-
-  @Get()
-  @UseGuards(AuthGuard)
-  @Roles(Role.read_metrics)
-  @ApiOkPaginatedResponse(MeasurementDto)
-  async queryMeasurements(
-    @Query() query: QueryMeasurementsDto,
-  ): Promise<PaginationResultDto<MeasurementDto>> {
-    const { data, total } = await this.measurementService.queryMeasurements(query);
-
-    const result: MeasurementDto[] = data.map((m) => ({
-      metricId: m.metricId,
-      logTime: m.logTime,
-      value: m.value,
-      meta: m.meta,
-      isWarmTier: m.isWarmTier,
-    }));
-
-    return {
-      data: result,
-      metadata: {
-        currentPage: 1,
-        totalPages: 1,
-        pageSize: result.length,
-        totalItems: total,
-      },
-    };
-  }
-
-  @Get('/:metricId/latest')
-  @UseGuards(AuthGuard)
-  @Roles(Role.read_metrics)
-  async getLatestMeasurements(
-    @Param('metricId') metricId: string,
-    @Query('limit') limit: number = 100,
-  ): Promise<MeasurementDto[]> {
-    const measurements = await this.measurementService.getLatestMeasurements(
-      metricId,
-      limit,
-    );
-
-    return measurements.map((m) => ({
-      metricId: m.metricId,
-      logTime: m.logTime,
-      value: m.value,
-      meta: m.meta,
-      isWarmTier: m.isWarmTier,
-    }));
-  }
-
-  @Get('/:metricId/aggregate')
-  @UseGuards(AuthGuard)
-  @Roles(Role.read_metrics)
-  async aggregateMeasurements(
-    @Param('metricId') metricId: string,
-    @Query('startTime') startTime: string,
-    @Query('endTime') endTime: string,
-    @Query('interval') interval: 'hour' | 'day' | 'week' | 'month' = 'hour',
-    @Query('aggregation') aggregation: 'avg' | 'sum' | 'min' | 'max' | 'count' = 'avg',
-  ): Promise<Record<string, number>> {
-    if (!startTime || !endTime) {
-      throw new NotFoundException('startTime and endTime are required');
-    }
-
-    return this.measurementService.aggregateMeasurements(
-      metricId,
-      new Date(startTime),
-      new Date(endTime),
-      interval,
-      aggregation,
-    );
   }
 }
