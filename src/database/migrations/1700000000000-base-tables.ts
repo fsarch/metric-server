@@ -7,6 +7,13 @@ export class BaseTables1700000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const databaseType = queryRunner.connection.driver.options.type;
 
+    // Only PostgreSQL is supported for this migration due to partitioning requirements
+    if (databaseType !== 'postgres') {
+      throw new Error(
+        'This migration only supports PostgreSQL database. Partitioning features are PostgreSQL-specific.',
+      );
+    }
+
     // Create metric_type table
     await queryRunner.createTable(
       new Table({
@@ -175,6 +182,15 @@ export class BaseTables1700000000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    const databaseType = queryRunner.connection.driver.options.type;
+
+    // Only PostgreSQL is supported for this migration due to partitioning requirements
+    if (databaseType !== 'postgres') {
+      throw new Error(
+        'This migration only supports PostgreSQL database. Partitioning features are PostgreSQL-specific.',
+      );
+    }
+
     await queryRunner.dropIndex(
       'metric_type',
       'idx__metric_type__external_id',
