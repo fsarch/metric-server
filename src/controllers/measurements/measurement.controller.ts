@@ -23,18 +23,18 @@ export class MeasurementController {
   @UseGuards(AuthGuard)
   @Roles(Role.write_measurements)
   @ApiBody({ type: [CreateMeasurementDto] })
-  @ApiCreatedResponse({ type: [MeasurementDto] })
+  @ApiCreatedResponse({ 
+    type: Array<{ metricId: string; logTime: Date }>,
+    description: 'Returns metricId and logTime for each created measurement' 
+  })
   async createMeasurementsBulk(
     @Body() bodies: CreateMeasurementDto[],
-  ): Promise<MeasurementDto[]> {
+  ): Promise<Array<{ metricId: string; logTime: Date }>> {
     const measurements = await this.measurementService.createMeasurements(bodies);
 
     return measurements.map((m) => ({
       metricId: m.metricId,
       logTime: m.logTime,
-      value: m.value,
-      meta: m.meta,
-      isWarmTier: m.isWarmTier,
     }));
   }
 }

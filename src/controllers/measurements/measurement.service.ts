@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThan, Between, DataSource } from 'typeorm';
+import { Repository, MoreThan, LessThan, Between, DataSource, In } from 'typeorm';
 import { Measurement } from '../../database/entities/measurement.entity.js';
 import { PartitionService } from '../../services/partition.service.js';
 import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
@@ -42,14 +42,64 @@ export class MeasurementService {
   }
 
   async createMeasurements(dtos: CreateMeasurementDto[]): Promise<Measurement[]> {
-    const measurements: Measurement[] = [];
-
-    for (const dto of dtos) {
-      const measurement = await this.createMeasurement(dto.metricId, dto);
-      measurements.push(measurement);
+    if (dtos.length === 0) {
+      return [];
     }
 
-    return measurements;
+    // Group measurements by partition to minimize partition checks
+    // Each unique partition only needs to be checked once
+    const uniquePartitions = new Set<string>();
+    
+    for (const dto of dtos) {
+      const logTime = new Date(dto.logTime);
+      const partitionStart = this.partitionService['getPartitionStartDate'](logTime);
+      uniquePartitions.add(partitionStart.toISOString());
+    }
+
+    // Ensure all required partitions exist
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    
+    try {
+      // Ensure all partitions exist before inserting
+      for (const partitionStart of uniquePartitions) {
+        await this.partitionService.ensurePartitionForDate(new Date(partitionStart));
+      }
+      
+      // Prepare all measurements
+      const measurements: Measurement[] = [];
+      for (const dto of dtos) {
+        const logTime = new Date(dto.logTime);
+        
+        // Get warm tier status for this measurement's partition
+        const partition = await this.partitionService.getPartitionForDate(logTime);
+        const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partition?.isWarmTier ?? true;
+        
+        const measurement = this.measurementRepository.create({
+          metricId: dto.metricId,
+          logTime,
+          value: dto.value,
+          meta: dto.meta ?? null,
+          isWarmTier,
+        });
+        measurements.push(measurement);
+      }
+      
+      // Bulk insert all measurements in a single query
+      await queryRunner.manager.insert(Measurement, measurements);
+      
+      await queryRunner.commitTransaction();
+      
+      // Return the input DTOs as confirmation (with metricId and logTime)
+      // We don't need to fetch from DB since we already have the data
+      return measurements;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async queryMeasurementsByMetric(

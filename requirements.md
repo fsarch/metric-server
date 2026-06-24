@@ -163,6 +163,18 @@ This document captures all functional and technical requirements for the metric-
 - Time range filtering: Use `startTime` and `endTime` query parameters
 - Pagination: Support `limit` and `offset` parameters
 
+### Bulk Insert Optimization
+- Use **single transaction** for all measurements in a bulk request
+- **Group by partition** to minimize partition checks (check once per partition, not per measurement)
+- Use `repository.insert()` for bulk insert instead of individual `save()` calls
+- Ensure all required partitions exist before inserting data
+
+### Bulk Endpoint Response
+- Return **HTTP 201 Created** status
+- Response body: **Multi-result array** (not full entities)
+- Each array item contains only: `metricId`, `logTime`
+- Do NOT return: `value`, `meta`, `isWarmTier` in bulk response
+
 ### TypeORM Query Results
 When using `queryRunner.query()` with PostgreSQL, handle query results safely:
 - Query results may return `{ rows: [...] }` or just the array depending on the driver

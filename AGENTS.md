@@ -178,6 +178,26 @@ Use `PartitionService` to:
 - Check if data belongs to warm or cold tier
 - Manage partition lifecycle
 
+### Bulk Operations
+
+When implementing bulk operations:
+- **Use transactions** to ensure data consistency
+- **Minimize database round-trips** - prefer bulk inserts over individual saves
+- **Group by common criteria** (e.g., partition) to reduce redundant checks
+- Use `repository.insert()` for bulk inserts instead of looping `save()`
+
+Example:
+```typescript
+// ❌ Inefficient: N database calls
+for (const dto of dtos) {
+  await repository.save(entity);
+}
+
+// ✅ Efficient: 1 database call
+const entities = dtos.map(dto => repository.create(dto));
+await repository.insert(entities);
+```
+
 ### TypeORM Query Safety
 
 When using raw SQL queries with TypeORM's `queryRunner.query()`, **always handle results safely**:
