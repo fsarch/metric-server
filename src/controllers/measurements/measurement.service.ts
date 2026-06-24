@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThan, Between } from 'typeorm';
+import { Repository, MoreThan, LessThan, Between, DataSource } from 'typeorm';
 import { Measurement } from '../../database/entities/measurement.entity.js';
 import { PartitionService } from '../../services/partition.service.js';
 import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
@@ -14,6 +14,7 @@ export class MeasurementService {
     @InjectRepository(Measurement)
     private readonly measurementRepository: Repository<Measurement>,
     private readonly partitionService: PartitionService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async createMeasurement(
@@ -117,52 +118,128 @@ export class MeasurementService {
   async aggregateMeasurementsByMetric(
     metricId: string,
     dto: AggregateMeasurementsDto,
-  ): Promise<Record<string, number>> {
+  ): Promise<
+    Array<{ startTime: string; endTime: string; value: number }>
+  > {
     const { startTime, endTime, interval, aggregation, warmTierOnly } = dto;
+    const startDate = new Date(startTime);
+    const endDate = new Date(endTime);
 
-    const measurements = await this.getMeasurementsInRange(
-      metricId,
-      new Date(startTime),
-      new Date(endTime),
-      warmTierOnly,
-    );
+    // Build the date truncation expression based on interval
+    const intervalExpression = this.getPostgresIntervalExpression(interval);
 
-    const aggregated: Record<string, number> = {};
+    // Build the aggregation function based on the requested aggregation
+    const aggFunction = this.getPostgresAggregationFunction(aggregation);
 
-    for (const measurement of measurements) {
-      const key = this.getIntervalKey(measurement.logTime, interval);
+    const queryRunner = this.dataSource.createQueryRunner();
+    try {
+      await queryRunner.connect();
 
-      if (!aggregated[key]) {
-        aggregated[key] = 0;
+      const query = `
+        SELECT 
+          date_trunc('${intervalExpression}', log_time) as interval_start,
+          ${aggFunction}(value) as result
+        FROM measurement
+        WHERE metric_id = '${metricId}'
+          AND log_time >= '${startDate.toISOString()}'
+          AND log_time <= '${endDate.toISOString()}'
+          ${warmTierOnly ? 'AND is_warm_tier = true' : ''}
+        GROUP BY interval_start
+        ORDER BY interval_start
+      `;
+
+      const result = await queryRunner.query(query);
+      const rows = result ?? [];
+
+      const aggregated: Array<{ startTime: string; endTime: string; value: number }> = [];
+      for (const row of rows) {
+        const intervalStart = new Date(row.interval_start);
+
+        // Calculate end time based on interval
+        let intervalEnd: Date;
+        let startTimeStr: string;
+        let endTimeStr: string;
+
+        if (interval === 'hour') {
+          intervalEnd = new Date(intervalStart);
+          intervalEnd.setUTCHours(intervalStart.getUTCHours() + 1);
+          startTimeStr = intervalStart.toISOString().split(':')[0] + ':00:00';
+          endTimeStr = intervalEnd.toISOString().split(':')[0] + ':00:00';
+        } else if (interval === 'day') {
+          intervalEnd = new Date(intervalStart);
+          intervalEnd.setUTCDate(intervalStart.getUTCDate() + 1);
+          startTimeStr = intervalStart.toISOString().split('T')[0];
+          endTimeStr = intervalEnd.toISOString().split('T')[0];
+        } else if (interval === 'week') {
+          intervalEnd = new Date(intervalStart);
+          intervalEnd.setUTCDate(intervalStart.getUTCDate() + 7);
+          startTimeStr = intervalStart.toISOString().split('T')[0];
+          endTimeStr = intervalEnd.toISOString().split('T')[0];
+        } else if (interval === 'month') {
+          intervalEnd = new Date(intervalStart);
+          intervalEnd.setUTCMonth(intervalStart.getUTCMonth() + 1);
+          const startYear = intervalStart.getUTCFullYear();
+          const startMonth = String(intervalStart.getUTCMonth() + 1).padStart(2, '0');
+          const endYear = intervalEnd.getUTCFullYear();
+          const endMonth = String(intervalEnd.getUTCMonth() + 1).padStart(2, '0');
+          startTimeStr = `${startYear}-${startMonth}-01`;
+          endTimeStr = `${endYear}-${endMonth}-01`;
+        } else {
+          // Default: use the interval_start as both start and end
+          startTimeStr = intervalStart.toISOString();
+          endTimeStr = intervalStart.toISOString();
+        }
+
+        aggregated.push({
+          startTime: startTimeStr,
+          endTime: endTimeStr,
+          value: parseFloat(row.result),
+        });
       }
 
-      switch (aggregation) {
-        case 'sum':
-          aggregated[key] += measurement.value;
-          break;
-        case 'min':
-          aggregated[key] = Math.min(aggregated[key], measurement.value);
-          break;
-        case 'max':
-          aggregated[key] = Math.max(aggregated[key], measurement.value);
-          break;
-        case 'count':
-          aggregated[key] += 1;
-          break;
-        case 'avg':
-        default:
-          // For average, we'd need to track sum and count separately
-          // This is a simplified version
-          if (aggregated[key] === 0) {
-            aggregated[key] = measurement.value;
-          } else {
-            aggregated[key] = (aggregated[key] + measurement.value) / 2;
-          }
-          break;
-      }
+      return aggregated;
+    } finally {
+      await queryRunner.release();
     }
+  }
 
-    return aggregated;
+  /**
+   * Maps aggregation type to PostgreSQL aggregation function
+   */
+  private getPostgresAggregationFunction(aggregation: string): string {
+    switch (aggregation.toLowerCase()) {
+      case 'sum':
+        return 'SUM';
+      case 'min':
+        return 'MIN';
+      case 'max':
+        return 'MAX';
+      case 'count':
+        return 'COUNT';
+      case 'avg':
+      default:
+        return 'AVG';
+    }
+  }
+
+  /**
+   * Maps interval to PostgreSQL date_trunc precision
+   */
+  private getPostgresIntervalExpression(interval: string): string {
+    switch (interval.toLowerCase()) {
+      case 'hour':
+        return 'hour';
+      case 'day':
+        return 'day';
+      case 'week':
+        return 'week';
+      case 'month':
+        return 'month';
+      case 'year':
+        return 'year';
+      default:
+        return 'hour';
+    }
   }
 
   async getMeasurement(metricId: string, logTime: Date): Promise<Measurement | null> {
@@ -193,23 +270,5 @@ export class MeasurementService {
       where,
       order: { logTime: 'ASC' },
     });
-  }
-
-  private getIntervalKey(date: Date, interval: string): string {
-    switch (interval) {
-      case 'day':
-        return date.toISOString().split('T')[0];
-      case 'week': {
-        const d = new Date(date);
-        const day = d.getDay();
-        d.setDate(d.getDate() - day);
-        return d.toISOString().split('T')[0];
-      }
-      case 'month':
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      case 'hour':
-      default:
-        return date.toISOString().split(':')[0] + ':00:00';
-    }
   }
 }

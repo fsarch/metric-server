@@ -62,7 +62,7 @@ k6 run \
 
 #### With Environment File
 
-Create a `.env` file:
+Create a `.env` file in the k6 directory:
 ```bash
 K6_ACCESS_TOKEN=your-token-here
 K6_METRIC_ID=your-metric-id-here
@@ -71,11 +71,29 @@ K6_DURATION=2m
 K6_BULK_SIZE=150
 ```
 
-Run with:
+**Important:** k6 does NOT automatically load `.env` files like Node.js does.
+You have two options:
+
+#### Option 1: Pass variables directly (recommended)
 ```bash
-k6 run --env K6_ACCESS_TOKEN --env K6_METRIC_ID k6/measurements.js
-# Or load from file
+k6 run --env K6_ACCESS_TOKEN=your-token --env K6_METRIC_ID=your-id k6/measurements.js
+```
+
+#### Option 2: Use -e shorthand
+```bash
 k6 run -e K6_ACCESS_TOKEN=your-token -e K6_METRIC_ID=your-id k6/measurements.js
+```
+
+#### Option 3: Load from .env file using shell
+```bash
+# On Unix/macOS
+set -a && source k6/.env && k6 run --env K6_ACCESS_TOKEN --env K6_METRIC_ID k6/measurements.js
+set +a
+
+# Or simpler: export and use
+K6_ACCESS_TOKEN=$(grep K6_ACCESS_TOKEN k6/.env | cut -d= -f2) \
+K6_METRIC_ID=$(grep K6_METRIC_ID k6/.env | cut -d= -f2) \
+k6 run --env K6_ACCESS_TOKEN=$K6_ACCESS_TOKEN --env K6_METRIC_ID=$K6_METRIC_ID k6/measurements.js
 ```
 
 ## Test Scenarios

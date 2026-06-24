@@ -1,32 +1,32 @@
-/**
- * k6 Load Test for metric-server - Measurements Generation
- * 
- * This script generates random measurement data for load testing.
- * 
- * Environment Variables:
- *   - K6_BASE_URL: Base URL of the metric-server (default: http://localhost:3000)
- *   - K6_ACCESS_TOKEN: Bearer token for authentication (required)
- *   - K6_METRIC_ID: Metric ID to post measurements to (required for single measurement endpoint)
- *   - K6_VUS: Number of virtual users (default: 10)
- *   - K6_DURATION: Test duration in seconds (default: 60s)
- *   - K6_BULK_SIZE: Number of measurements per bulk request (default: 100)
- * 
- * Usage:
- *   # Single measurement endpoint test
- *   k6 run --env K6_ACCESS_TOKEN=xxx --env K6_METRIC_ID=xxx k6/measurements.js
- * 
- *   # Bulk measurement endpoint test
- *   k6 run --env K6_ACCESS_TOKEN=xxx k6/measurements.js
- * 
- *   # With custom settings
- *   k6 run --env K6_ACCESS_TOKEN=xxx --env K6_METRIC_ID=xxx --env K6_VUS=50 --env K6_DURATION=300 k6/measurements.js
- */
+// k6 Load Test for metric-server - Measurements Generation
+//
+// This script generates random measurement data for load testing.
+//
+// Environment Variables:
+//   - K6_BASE_URL: Base URL of the metric-server (default: http://localhost:3000)
+//   - K6_ACCESS_TOKEN: Bearer token for authentication (required)
+//   - K6_METRIC_ID: Metric ID to post measurements to (required for single measurement endpoint)
+//   - K6_VUS: Number of virtual users (default: 10)
+//   - K6_DURATION: Test duration in seconds (default: 60s)
+//   - K6_BULK_SIZE: Number of measurements per bulk request (default: 100)
+//
+// Usage:
+//   # Single measurement endpoint test
+//   k6 run --env K6_ACCESS_TOKEN=xxx --env K6_METRIC_ID=xxx k6/measurements.js
+//
+//   # Bulk measurement endpoint test
+//   k6 run --env K6_ACCESS_TOKEN=xxx k6/measurements.js
+//
+//   # With custom settings
+//   k6 run --env K6_ACCESS_TOKEN=xxx --env K6_METRIC_ID=xxx --env K6_VUS=50 --env K6_DURATION=300 k6/measurements.js
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { SharedArray } from 'k6/data';
 
-// Configuration from environment variables
+// Load configuration from environment variables
+// k6 does not automatically load .env files, so you must pass them with --env flag
+// Example: k6 run --env K6_ACCESS_TOKEN=xxx --env K6_METRIC_ID=xxx measurements.js
 const BASE_URL = __ENV.K6_BASE_URL || 'http://localhost:3000';
 const ACCESS_TOKEN = __ENV.K6_ACCESS_TOKEN;
 const METRIC_ID = __ENV.K6_METRIC_ID;
@@ -36,7 +36,11 @@ const BULK_SIZE = parseInt(__ENV.K6_BULK_SIZE) || 100;
 
 // Validate required configuration
 if (!ACCESS_TOKEN) {
-  throw new Error('K6_ACCESS_TOKEN environment variable is required');
+  throw new Error(
+    'K6_ACCESS_TOKEN environment variable is required.\n' +
+    'Pass it with: k6 run --env K6_ACCESS_TOKEN=your-token measurements.js\n' +
+    'Or create a .env file and load it with: k6 run --env K6_ACCESS_TOKEN measurements.js',
+  );
 }
 
 // Headers for authenticated requests
@@ -133,7 +137,7 @@ function testBulkMeasurements() {
       const body = JSON.parse(r.body);
       return Array.isArray(body);
     },
-    `Bulk measurements: response has ${BULK_SIZE} items`: (r) => {
+    'Bulk measurements: response has correct count': (r) => {
       const body = JSON.parse(r.body);
       return body && body.length === BULK_SIZE;
     },

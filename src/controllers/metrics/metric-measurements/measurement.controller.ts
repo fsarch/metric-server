@@ -18,6 +18,7 @@ import { MeasurementService } from '../../measurements/measurement.service.js';
 import { CreateMeasurementDto } from '../../../models/measurement/CreateMeasurementDto.js';
 import { MeasurementDto } from '../../../models/measurement/MeasurementDto.js';
 import { AggregateMeasurementsDto } from '../../../models/measurement/AggregateMeasurementsDto.js';
+import { AggregatedMeasurementDto } from '../../../models/measurement/AggregatedMeasurementDto.js';
 import { Role } from '../../../constants/role.enum.js';
 
 @ApiBearerAuth()
@@ -87,11 +88,11 @@ export class MeasurementController {
   @UseGuards(AuthGuard)
   @Roles(Role.read_metrics)
   @ApiBody({ type: AggregateMeasurementsDto })
-  @ApiOkResponse({ type: Object })
+  @ApiOkResponse({ type: [AggregatedMeasurementDto] })
   async aggregateMeasurements(
     @Param('metricId') metricId: string,
     @Body() body: AggregateMeasurementsDto,
-  ): Promise<Record<string, number>> {
+  ): Promise<AggregatedMeasurementDto[]> {
     return this.measurementService.aggregateMeasurementsByMetric(metricId, body);
   }
 }

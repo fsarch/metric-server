@@ -156,7 +156,10 @@ This document captures all functional and technical requirements for the metric-
 
 ### Measurement Queries
 - Latest measurements endpoint: Return most recent data first (DESC by log_time)
-- Aggregation: Support sum, min, max, count, avg operations
+- **Aggregation: Must be performed at database level** (PostgreSQL GROUP BY + aggregation functions)
+  - Supported aggregations: sum, min, max, count, avg
+  - Use `date_trunc()` for interval grouping
+  - Use PostgreSQL aggregation functions (SUM, MIN, MAX, COUNT, AVG)
 - Time range filtering: Use `startTime` and `endTime` query parameters
 - Pagination: Support `limit` and `offset` parameters
 
