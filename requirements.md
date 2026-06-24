@@ -169,11 +169,29 @@ This document captures all functional and technical requirements for the metric-
 - Use `repository.insert()` for bulk insert instead of individual `save()` calls
 - Ensure all required partitions exist before inserting data
 
+### Partition Caching
+- Use **LRU cache** via NestJS Dependency Injection for partition information
+- Cache implementation: `LruCacheService` and `PartitionCacheService` in `services/cache.service.ts`
+- **LRU behavior**: When cache is full, least recently used items are evicted
+- **TTL support**: Optional time-to-live for cache entries (not used for partitions)
+- Cache key: Partition start date (ISO string)
+- Cache value: `{ partition: MeasurementPartition | null; isWarmTier: boolean }`
+- **Combined method**: `ensurePartitionAndGetInfo()` combines ensure + get into one call with caching
+- **Clear cache**: `clearPartitionCache()` method available for testing/configuration changes
+- **Configuration**: Max size = 1000 entries, TTL = null (no expiry, partitions are static)
+- **Integration**: Injected via DI in `MeasurementService`
+
 ### Bulk Endpoint Response
 - Return **HTTP 201 Created** status
 - Response body: **Multi-result array** (not full entities)
 - Each array item contains only: `metricId`, `logTime`
 - Do NOT return: `value`, `meta`, `isWarmTier` in bulk response
+
+### Error Handling
+- **Unique constraint violation** (duplicate `metric_id` + `log_time`): Return **HTTP 409 Conflict**
+- Error message must identify the duplicate key: `Measurement with metricId X and logTime Y already exists`
+- Handle both single (`createMeasurement`) and bulk (`createMeasurements`) operations
+- PostgreSQL error code: `23505` (unique_violation)
 
 ### TypeORM Query Results
 When using `queryRunner.query()` with PostgreSQL, handle query results safely:

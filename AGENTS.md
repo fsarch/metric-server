@@ -198,6 +198,58 @@ const entities = dtos.map(dto => repository.create(dto));
 await repository.insert(entities);
 ```
 
+### Caching
+
+Use in-memory caching for frequently accessed data:
+- **Partition information** - Cache partition start dates and warm tier status
+- **TTL not required** for partition data (partitions don't change often)
+- **Clear cache** when configuration changes or for testing
+
+For production, use the **LRU cache service** with Dependency Injection:
+
+```typescript
+// services/cache.service.ts
+@Injectable()
+export class LruCacheService<K, V> {
+  // LRU implementation with configurable max size and TTL
+}
+
+@Injectable()
+export class PartitionCacheService extends LruCacheService<string, { partition: any; isWarmTier: boolean }> {}
+
+// In services.module.ts
+@Module({
+  providers: [
+    {
+      provide: PartitionCacheService,
+      useFactory: () => new PartitionCacheService(1000, null), // maxSize, ttlMs
+    },
+  ],
+  exports: [PartitionCacheService],
+})
+export class ServicesModule {}
+
+// In your service
+@Injectable()
+export class YourService {
+  constructor(
+    private readonly partitionCacheService: PartitionCacheService,
+  ) {}
+
+  async getPartitionInfo(date: Date) {
+    const cacheKey = this.getCacheKey(date);
+    const cached = this.partitionCacheService.get(cacheKey);
+    if (cached) return cached;
+    
+    const result = await this.fetchPartition(date);
+    this.partitionCacheService.set(cacheKey, result);
+    return result;
+  }
+}
+```
+
+For simple cases, a Map-based cache is sufficient. For production, prefer the LRU cache service with DI.
+
 ### TypeORM Query Safety
 
 When using raw SQL queries with TypeORM's `queryRunner.query()`, **always handle results safely**:

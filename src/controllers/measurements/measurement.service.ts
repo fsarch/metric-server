@@ -1,7 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, LessThan, Between, DataSource, In } from 'typeorm';
+import { ConflictException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { Measurement } from '../../database/entities/measurement.entity.js';
+import { MeasurementPartition } from '../../database/entities/measurement-partition.entity.js';
 import { PartitionService } from '../../services/partition.service.js';
 import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
 import { AggregateMeasurementsDto } from '../../models/measurement/AggregateMeasurementsDto.js';
@@ -14,6 +18,8 @@ export class MeasurementService {
     @InjectRepository(Measurement)
     private readonly measurementRepository: Repository<Measurement>,
     private readonly partitionService: PartitionService,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -23,12 +29,9 @@ export class MeasurementService {
   ): Promise<Measurement> {
     const logTime = new Date(dto.logTime);
 
-    // Ensure partition exists for this date
-    await this.partitionService.ensurePartitionForDate(logTime);
-
-    // Determine warm tier status based on configuration
-    const partition = await this.partitionService.getPartitionForDate(logTime);
-    const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partition?.isWarmTier ?? true;
+    // Ensure partition exists and get partition info (with caching)
+    const { partition, isWarmTier: partitionIsWarmTier } = await this.ensurePartitionAndGetInfo(logTime);
+    const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partitionIsWarmTier;
 
     const measurement = this.measurementRepository.create({
       metricId,
@@ -38,7 +41,17 @@ export class MeasurementService {
       isWarmTier,
     });
 
-    return this.measurementRepository.save(measurement);
+    try {
+      return await this.measurementRepository.save(measurement);
+    } catch (error) {
+      // Handle unique constraint violation (duplicate metric_id + log_time)
+      if (error.code === '23505' || error.message?.includes('duplicate key value violates unique constraint')) {
+        throw new ConflictException(
+          `Measurement with metricId ${metricId} and logTime ${logTime.toISOString()} already exists`,
+        );
+      }
+      throw error;
+    }
   }
 
   async createMeasurements(dtos: CreateMeasurementDto[]): Promise<Measurement[]> {
@@ -46,35 +59,20 @@ export class MeasurementService {
       return [];
     }
 
-    // Group measurements by partition to minimize partition checks
-    // Each unique partition only needs to be checked once
-    const uniquePartitions = new Set<string>();
-    
-    for (const dto of dtos) {
-      const logTime = new Date(dto.logTime);
-      const partitionStart = this.partitionService['getPartitionStartDate'](logTime);
-      uniquePartitions.add(partitionStart.toISOString());
-    }
-
-    // Ensure all required partitions exist
+    // Use cache for partition info to minimize database queries
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
     
     try {
-      // Ensure all partitions exist before inserting
-      for (const partitionStart of uniquePartitions) {
-        await this.partitionService.ensurePartitionForDate(new Date(partitionStart));
-      }
-      
-      // Prepare all measurements
+      // Prepare all measurements and ensure partitions exist (with caching)
       const measurements: Measurement[] = [];
       for (const dto of dtos) {
         const logTime = new Date(dto.logTime);
         
-        // Get warm tier status for this measurement's partition
-        const partition = await this.partitionService.getPartitionForDate(logTime);
-        const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partition?.isWarmTier ?? true;
+        // Get partition info with caching (ensures partition exists and returns isWarmTier)
+        const { isWarmTier: partitionIsWarmTier } = await this.ensurePartitionAndGetInfo(logTime);
+        const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partitionIsWarmTier;
         
         const measurement = this.measurementRepository.create({
           metricId: dto.metricId,
@@ -96,6 +94,16 @@ export class MeasurementService {
       return measurements;
     } catch (error) {
       await queryRunner.rollbackTransaction();
+      
+      // Handle unique constraint violation for bulk insert
+      if (error.code === '23505' || error.message?.includes('duplicate key value violates unique constraint')) {
+        // Extract duplicate keys from error message if possible
+        const match = error.message?.match(/key \(([^)]+)\)/);
+        const constraint = match ? match[1] : 'measurement_pkey';
+        throw new ConflictException(
+          `Duplicate measurement(s) found. A measurement with the same metricId and logTime already exists. Constraint: ${constraint}`,
+        );
+      }
       throw error;
     } finally {
       await queryRunner.release();
@@ -251,6 +259,41 @@ export class MeasurementService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Ensures partition exists for the given date and returns partition info.
+   * Uses cache-manager to avoid repeated database queries for the same partition.
+   * Combines ensurePartitionForDate and getPartitionForDate into a single optimized call.
+   */
+  private async ensurePartitionAndGetInfo(logTime: Date): Promise<{ partition: MeasurementPartition | null; isWarmTier: boolean }> {
+    const partitionStart = this.partitionService['getPartitionStartDate'](logTime);
+    const partitionKey = partitionStart.toISOString();
+    
+    // Check cache first
+    const cached: { partition: MeasurementPartition | null; isWarmTier: boolean } | undefined = await this.cacheManager.get(partitionKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Ensure partition exists
+    await this.partitionService.ensurePartitionForDate(logTime);
+    
+    // Get partition info
+    const partition = await this.partitionService.getPartitionForDate(logTime);
+    const isWarmTier = partition?.isWarmTier ?? true;
+    
+    // Cache the result using cache-manager (no TTL as configured in module)
+    await this.cacheManager.set(partitionKey, { partition, isWarmTier });
+    
+    return { partition, isWarmTier };
+  }
+
+  /**
+   * Clears the partition cache. Useful for testing or when partition configuration changes.
+   */
+  async clearPartitionCache(): Promise<void> {
+    await this.cacheManager.clear();
   }
 
   /**
