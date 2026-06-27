@@ -47,7 +47,7 @@ export class MetricController {
   @Roles(Role.read_metrics)
   @ApiOkPaginatedResponse(MetricDto)
   async listMetrics(
-    @Query('metricTypeId') metricTypeId: string,
+    @Query('metricTypeId') metricTypeId?: string,
     @Query('page') page: number = 1,
     @Query('pageSize') pageSize: number = 25,
   ): Promise<PaginationResultDto<MetricDto>> {
