@@ -125,7 +125,11 @@ export class MetricService {
     return this.metricRepository.save(metric);
   }
 
-  async listMetrics(metricTypeId?: string): Promise<Metric[]> {
+  async listMetrics(
+    metricTypeId?: string,
+    skip?: number,
+    take?: number,
+  ): Promise<Metric[]> {
     const query: Record<string, unknown> = {};
 
     if (metricTypeId) {
@@ -136,7 +140,19 @@ export class MetricService {
       where: query,
       relations: { metricType: true },
       order: { name: 'ASC' },
+      skip,
+      take,
     });
+  }
+
+  async countMetrics(metricTypeId?: string): Promise<number> {
+    const query: Record<string, unknown> = {};
+
+    if (metricTypeId) {
+      query.metricTypeId = metricTypeId;
+    }
+
+    return this.metricRepository.count({ where: query });
   }
 
   async getMetric(id: string): Promise<Metric> {

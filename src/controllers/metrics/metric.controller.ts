@@ -52,15 +52,14 @@ export class MetricController {
     @Query('pageSize') pageSize: number = 25,
   ): Promise<PaginationResultDto<MetricDto>> {
     const skip = (page - 1) * pageSize;
-    const [metrics, totalItems] = await Promise.all([
-      this.metricService.listMetrics(metricTypeId),
-      this.metricService.listMetrics(metricTypeId),
+    const [metrics, total] = await Promise.all([
+      this.metricService.listMetrics(metricTypeId, skip, pageSize),
+      this.metricService.countMetrics(metricTypeId),
     ]);
 
-    const totalPages = Math.ceil(totalItems.length / pageSize);
-    const paginatedMetrics = metrics.slice(skip, skip + pageSize);
+    const totalPages = Math.ceil(total / pageSize);
 
-    const data: MetricDto[] = paginatedMetrics.map((m) => ({
+    const data: MetricDto[] = metrics.map((m) => ({
       id: m.id,
       name: m.name,
       metricTypeId: m.metricTypeId,
@@ -74,7 +73,7 @@ export class MetricController {
         currentPage: page,
         totalPages,
         pageSize,
-        totalItems: totalItems.length,
+        totalItems: total,
       },
     };
   }
