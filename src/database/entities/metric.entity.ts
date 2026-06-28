@@ -47,4 +47,11 @@ export class Metric {
     type: 'timestamptz',
   })
   creationTime: Date;
+
+  @Column({
+    name: 'deletion_time',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  deletionTime: Date | null;
 }

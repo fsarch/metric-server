@@ -100,12 +100,13 @@ export class MetricService {
       );
     }
 
-    // Check if externalId already exists for this metric type
+    // Check if externalId already exists for this metric type (excluding deleted)
     if (dto.externalId) {
       const existing = await this.metricRepository.findOne({
         where: {
           metricTypeId: dto.metricTypeId,
           externalId: dto.externalId,
+          deletionTime: null,
         },
       });
       if (existing) {
@@ -130,7 +131,9 @@ export class MetricService {
     skip?: number,
     take?: number,
   ): Promise<Metric[]> {
-    const query: Record<string, unknown> = {};
+    const query: Record<string, unknown> = {
+      deletionTime: null,
+    };
 
     if (metricTypeId) {
       query.metricTypeId = metricTypeId;
@@ -146,7 +149,9 @@ export class MetricService {
   }
 
   async countMetrics(metricTypeId?: string): Promise<number> {
-    const query: Record<string, unknown> = {};
+    const query: Record<string, unknown> = {
+      deletionTime: null,
+    };
 
     if (metricTypeId) {
       query.metricTypeId = metricTypeId;
@@ -157,7 +162,7 @@ export class MetricService {
 
   async getMetric(id: string): Promise<Metric> {
     const metric = await this.metricRepository.findOne({
-      where: { id },
+      where: { id, deletionTime: null },
       relations: { metricType: true },
     });
 
@@ -170,7 +175,7 @@ export class MetricService {
 
   async getMetricByExternalId(externalId: string): Promise<Metric> {
     const metric = await this.metricRepository.findOne({
-      where: { externalId },
+      where: { externalId, deletionTime: null },
       relations: { metricType: true },
     });
 
@@ -182,10 +187,12 @@ export class MetricService {
   }
 
   async deleteMetric(id: string): Promise<void> {
-    const result = await this.metricRepository.delete(id);
+    const metric = await this.metricRepository.findOne({ where: { id } });
 
-    if (result.affected === 0) {
+    if (!metric) {
       throw new NotFoundException(`Metric with id ${id} not found`);
     }
+
+    await this.metricRepository.update(id, { deletionTime: new Date() });
   }
 }
