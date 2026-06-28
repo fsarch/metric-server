@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { MetricType } from '../../database/entities/metric-type.entity.js';
 import { Metric } from '../../database/entities/metric.entity.js';
 import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
@@ -130,7 +130,7 @@ export class MetricService {
     metricTypeId?: string,
     skip?: number,
     take?: number,
-    includeDeleted?: boolean,
+    isDeleted?: boolean,
   ): Promise<Metric[]> {
     const query: Record<string, unknown> = {};
 
@@ -138,8 +138,11 @@ export class MetricService {
       query.metricTypeId = metricTypeId;
     }
 
-    // Only filter out deleted metrics if we're not explicitly including them
-    if (!includeDeleted) {
+    // isDeleted=true means we want only deleted metrics
+    if (isDeleted) {
+      query.deletionTime = Not(null);
+    } else {
+      // Default: only non-deleted metrics
       query.deletionTime = null;
     }
 
@@ -152,15 +155,18 @@ export class MetricService {
     });
   }
 
-  async countMetrics(metricTypeId?: string, includeDeleted?: boolean): Promise<number> {
+  async countMetrics(metricTypeId?: string, isDeleted?: boolean): Promise<number> {
     const query: Record<string, unknown> = {};
 
     if (metricTypeId) {
       query.metricTypeId = metricTypeId;
     }
 
-    // Only filter out deleted metrics if we're not explicitly including them
-    if (!includeDeleted) {
+    // isDeleted=true means we want only deleted metrics
+    if (isDeleted) {
+      query.deletionTime = Not(null);
+    } else {
+      // Default: only non-deleted metrics
       query.deletionTime = null;
     }
 

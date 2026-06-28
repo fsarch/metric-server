@@ -8,8 +8,6 @@ import {
   Get,
   Query,
   Delete,
-  Patch,
-  ConflictException,
 } from '@nestjs/common';
 
 import { AuthGuard } from '@fsarch/server/auth';
@@ -53,12 +51,12 @@ export class MetricController {
     @Query('metricTypeId') metricTypeId?: string,
     @Query('page') page: number = 1,
     @Query('pageSize') pageSize: number = 25,
-    @Query('includeDeleted') includeDeleted?: boolean,
+    @Query('isDeleted') isDeleted?: boolean,
   ): Promise<PaginationResultDto<MetricDto>> {
     const skip = (page - 1) * pageSize;
     const [metrics, total] = await Promise.all([
-      this.metricService.listMetrics(metricTypeId, skip, pageSize, includeDeleted),
-      this.metricService.countMetrics(metricTypeId, includeDeleted),
+      this.metricService.listMetrics(metricTypeId, skip, pageSize, isDeleted),
+      this.metricService.countMetrics(metricTypeId, isDeleted),
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
