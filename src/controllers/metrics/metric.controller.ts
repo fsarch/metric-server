@@ -8,12 +8,13 @@ import {
   Get,
   Query,
   Delete,
+  ParseBoolPipe, DefaultValuePipe,
 } from '@nestjs/common';
 
 import { AuthGuard } from '@fsarch/server/auth';
 import { Roles } from '@fsarch/server/uac';
 import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagination';
-import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 
 import { MetricService } from './metric.service.js';
 import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
@@ -47,11 +48,13 @@ export class MetricController {
   @UseGuards(AuthGuard)
   @Roles(Role.read_metrics)
   @ApiOkPaginatedResponse(MetricDto)
+  @ApiQuery({ name: 'metricTypeId', required: false })
+  @ApiQuery({ name: 'isDeleted', required: false, type: Boolean })
   async listMetrics(
     @Query('metricTypeId') metricTypeId?: string,
     @Query('page') page: number = 1,
     @Query('pageSize') pageSize: number = 25,
-    @Query('isDeleted') isDeleted?: boolean,
+    @Query('isDeleted', new DefaultValuePipe(false), ParseBoolPipe) isDeleted?: boolean,
   ): Promise<PaginationResultDto<MetricDto>> {
     const skip = (page - 1) * pageSize;
     const [metrics, total] = await Promise.all([

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Not, Repository } from 'typeorm';
+import { LessThan, Not, IsNull, Repository } from 'typeorm';
 import { MetricType } from '../../database/entities/metric-type.entity.js';
 import { Metric } from '../../database/entities/metric.entity.js';
 import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
@@ -107,7 +107,7 @@ export class MetricService {
         where: {
           metricTypeId: dto.metricTypeId,
           externalId: dto.externalId,
-          deletionTime: null,
+          deletionTime: IsNull(),
         },
       });
       if (existing) {
@@ -141,10 +141,10 @@ export class MetricService {
 
     // isDeleted=true means we want only deleted metrics
     if (isDeleted) {
-      query.deletionTime = Not(null);
+      query.deletionTime = Not(IsNull());
     } else {
       // Default: only non-deleted metrics
-      query.deletionTime = null;
+      query.deletionTime = IsNull();
     }
 
     return this.metricRepository.find({
@@ -165,10 +165,10 @@ export class MetricService {
 
     // isDeleted=true means we want only deleted metrics
     if (isDeleted) {
-      query.deletionTime = Not(null);
+      query.deletionTime = Not(IsNull());
     } else {
       // Default: only non-deleted metrics
-      query.deletionTime = null;
+      query.deletionTime = IsNull();
     }
 
     return this.metricRepository.count({ where: query });
@@ -176,7 +176,7 @@ export class MetricService {
 
   async getMetric(id: string): Promise<Metric> {
     const metric = await this.metricRepository.findOne({
-      where: { id, deletionTime: null },
+      where: { id, deletionTime: IsNull() },
       relations: { metricType: true },
     });
 
@@ -189,7 +189,7 @@ export class MetricService {
 
   async getMetricByExternalId(externalId: string): Promise<Metric> {
     const metric = await this.metricRepository.findOne({
-      where: { externalId, deletionTime: null },
+      where: { externalId, deletionTime: IsNull() },
       relations: { metricType: true },
     });
 
@@ -225,7 +225,9 @@ export class MetricService {
       throw new ConflictException(`Metric with id ${id} is not deleted`);
     }
 
-    await this.metricRepository.update(id, { deletionTime: null });
+    await this.metricRepository.update(id, {
+      deletionTime: null,
+    });
   }
 
   @OnHardDelete('metric')
