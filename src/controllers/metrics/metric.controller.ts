@@ -8,6 +8,8 @@ import {
   Get,
   Query,
   Delete,
+  Patch,
+  ConflictException,
 } from '@nestjs/common';
 
 import { AuthGuard } from '@fsarch/server/auth';
@@ -39,6 +41,7 @@ export class MetricController {
       metricTypeId: metric.metricTypeId,
       externalId: metric.externalId,
       creationTime: metric.creationTime,
+      deletionTime: metric.deletionTime,
     };
   }
 
@@ -50,11 +53,12 @@ export class MetricController {
     @Query('metricTypeId') metricTypeId?: string,
     @Query('page') page: number = 1,
     @Query('pageSize') pageSize: number = 25,
+    @Query('includeDeleted') includeDeleted?: boolean,
   ): Promise<PaginationResultDto<MetricDto>> {
     const skip = (page - 1) * pageSize;
     const [metrics, total] = await Promise.all([
-      this.metricService.listMetrics(metricTypeId, skip, pageSize),
-      this.metricService.countMetrics(metricTypeId),
+      this.metricService.listMetrics(metricTypeId, skip, pageSize, includeDeleted),
+      this.metricService.countMetrics(metricTypeId, includeDeleted),
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
@@ -65,6 +69,7 @@ export class MetricController {
       metricTypeId: m.metricTypeId,
       externalId: m.externalId,
       creationTime: m.creationTime,
+      deletionTime: m.deletionTime,
     }));
 
     return {
@@ -95,6 +100,7 @@ export class MetricController {
       metricTypeId: metric.metricTypeId,
       externalId: metric.externalId,
       creationTime: metric.creationTime,
+      deletionTime: metric.deletionTime,
     };
   }
 
@@ -103,5 +109,12 @@ export class MetricController {
   @Roles(Role.manage_metrics)
   async deleteMetric(@Param('id') id: string): Promise<void> {
     await this.metricService.deleteMetric(id);
+  }
+
+  @Post('/:id/restore')
+  @UseGuards(AuthGuard)
+  @Roles(Role.manage_metrics)
+  async restoreMetric(@Param('id') id: string): Promise<void> {
+    await this.metricService.restoreMetric(id);
   }
 }

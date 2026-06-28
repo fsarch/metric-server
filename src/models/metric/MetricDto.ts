@@ -31,4 +31,11 @@ export class MetricDto {
     example: '2024-01-15T10:30:00.000Z',
   })
   creationTime: Date;
+
+  @ApiProperty({
+    description: 'Deletion timestamp (null if not deleted)',
+    nullable: true,
+    example: '2024-01-15T10:30:00.000Z',
+  })
+  deletionTime: Date | null;
 }

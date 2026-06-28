@@ -130,13 +130,17 @@ export class MetricService {
     metricTypeId?: string,
     skip?: number,
     take?: number,
+    includeDeleted?: boolean,
   ): Promise<Metric[]> {
-    const query: Record<string, unknown> = {
-      deletionTime: null,
-    };
+    const query: Record<string, unknown> = {};
 
     if (metricTypeId) {
       query.metricTypeId = metricTypeId;
+    }
+
+    // Only filter out deleted metrics if we're not explicitly including them
+    if (!includeDeleted) {
+      query.deletionTime = null;
     }
 
     return this.metricRepository.find({
@@ -148,13 +152,16 @@ export class MetricService {
     });
   }
 
-  async countMetrics(metricTypeId?: string): Promise<number> {
-    const query: Record<string, unknown> = {
-      deletionTime: null,
-    };
+  async countMetrics(metricTypeId?: string, includeDeleted?: boolean): Promise<number> {
+    const query: Record<string, unknown> = {};
 
     if (metricTypeId) {
       query.metricTypeId = metricTypeId;
+    }
+
+    // Only filter out deleted metrics if we're not explicitly including them
+    if (!includeDeleted) {
+      query.deletionTime = null;
     }
 
     return this.metricRepository.count({ where: query });
@@ -193,6 +200,24 @@ export class MetricService {
       throw new NotFoundException(`Metric with id ${id} not found`);
     }
 
+    if (metric.deletionTime) {
+      throw new ConflictException(`Metric with id ${id} is already deleted`);
+    }
+
     await this.metricRepository.update(id, { deletionTime: new Date() });
+  }
+
+  async restoreMetric(id: string): Promise<void> {
+    const metric = await this.metricRepository.findOne({ where: { id } });
+
+    if (!metric) {
+      throw new NotFoundException(`Metric with id ${id} not found`);
+    }
+
+    if (!metric.deletionTime) {
+      throw new ConflictException(`Metric with id ${id} is not deleted`);
+    }
+
+    await this.metricRepository.update(id, { deletionTime: null });
   }
 }
