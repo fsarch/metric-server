@@ -109,7 +109,7 @@ export class MetricController {
     await this.metricService.deleteMetric(id);
   }
 
-  @Post('/:id/restore')
+  @Post('/:id/_actions/restore')
   @UseGuards(AuthGuard)
   @Roles(Role.manage_metrics)
   async restoreMetric(@Param('id') id: string): Promise<void> {
