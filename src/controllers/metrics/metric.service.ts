@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { LessThan, Not, Repository } from 'typeorm';
 import { MetricType } from '../../database/entities/metric-type.entity.js';
 import { Metric } from '../../database/entities/metric.entity.js';
 import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
 import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
 import crypto from 'node:crypto';
+import { type HardDeleteContext, OnHardDelete } from "@fsarch/server/deletion";
 
 @Injectable()
 export class MetricService {
@@ -225,5 +226,15 @@ export class MetricService {
     }
 
     await this.metricRepository.update(id, { deletionTime: null });
+  }
+
+  @OnHardDelete('metric')
+  async onHardDelete(ctx: HardDeleteContext) {
+    const { cutOffDate } = ctx;
+    console.log('cutOffDate', cutOffDate);
+
+    await this.metricRepository.delete({
+      deletionTime: LessThan(cutOffDate),
+    })
   }
 }

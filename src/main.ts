@@ -13,6 +13,7 @@ async function bootstrap() {
       version: '1.0',
     })
     .enableAuth()
+    .enableSoftDeletion()
     .setDatabase(DATABASE_OPTIONS)
     .build();
 

@@ -1,8 +1,8 @@
 import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
 import { getDataType } from './utils/data-type.mapper.js';
 
-export class AddDeletionTimeToMetric1700000001000 implements MigrationInterface {
-  name = 'AddDeletionTimeToMetric1700000001000';
+export class AddDeletionTimeToMetric1782679583570 implements MigrationInterface {
+  name = 'AddDeletionTimeToMetric1782679583570';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const databaseType = queryRunner.connection.driver.options.type;
