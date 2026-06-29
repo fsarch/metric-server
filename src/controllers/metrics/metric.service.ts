@@ -3,8 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Not, IsNull, Repository } from 'typeorm';
 import { MetricType } from '../../database/entities/metric-type.entity.js';
 import { Metric } from '../../database/entities/metric.entity.js';
+import { Measurement } from '../../database/entities/measurement.entity.js';
 import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
 import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
+import { MetricStatusDto } from '../../models/metric/MetricStatusDto.js';
 import crypto from 'node:crypto';
 import { type HardDeleteContext, OnHardDelete } from "@fsarch/server/deletion";
 
@@ -17,6 +19,8 @@ export class MetricService {
     private readonly metricTypeRepository: Repository<MetricType>,
     @InjectRepository(Metric)
     private readonly metricRepository: Repository<Metric>,
+    @InjectRepository(Measurement)
+    private readonly measurementRepository: Repository<Measurement>,
   ) {}
 
   // Metric Type Methods
@@ -228,6 +232,26 @@ export class MetricService {
     await this.metricRepository.update(id, {
       deletionTime: null,
     });
+  }
+
+  async getMetricStatus(metricId: string): Promise<MetricStatusDto> {
+    // Get total count of measurements for this metric
+    const totalMeasurements = await this.measurementRepository.count({
+      where: { metricId },
+    });
+
+    // Get first and last measurement dates
+    const result = await this.measurementRepository
+      .createQueryBuilder('m')
+      .select(['MIN(m.log_time) as first', 'MAX(m.log_time) as last'])
+      .where('m.metric_id = :metricId', { metricId })
+      .getRawOne();
+
+    return {
+      totalMeasurements,
+      firstMeasurementAt: result?.first ? new Date(result.first) : null,
+      lastMeasurementAt: result?.last ? new Date(result.last) : null,
+    };
   }
 
   @OnHardDelete('metric')

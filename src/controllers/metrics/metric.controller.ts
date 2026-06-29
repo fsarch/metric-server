@@ -19,6 +19,7 @@ import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiQuery } f
 import { MetricService } from './metric.service.js';
 import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
 import { MetricDto } from '../../models/metric/MetricDto.js';
+import { MetricStatusDto } from '../../models/metric/MetricStatusDto.js';
 import { Role } from '../../constants/role.enum.js';
 
 @ApiBearerAuth()
@@ -117,5 +118,13 @@ export class MetricController {
   @Roles(Role.manage_metrics)
   async restoreMetric(@Param('id') id: string): Promise<void> {
     await this.metricService.restoreMetric(id);
+  }
+
+  @Get('/:id/status')
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_metrics)
+  @ApiOkResponse({ type: MetricStatusDto })
+  async getMetricStatus(@Param('id') id: string): Promise<MetricStatusDto> {
+    return this.metricService.getMetricStatus(id);
   }
 }
