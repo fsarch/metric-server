@@ -212,20 +212,26 @@ export class MeasurementService {
         try {
           await queryRunner.connect();
 
+          // aggFunction is safe to inline: getPostgresAggregationFunction() only ever
+          // returns one of a fixed set of literal function names, never user input.
+          // Everything that *is* user-controlled (metricId, the date range, and the
+          // interval passed to date_trunc) goes through bound parameters instead of
+          // string interpolation to avoid SQL injection.
           const query = `
         SELECT
-          date_trunc('${intervalExpression}', log_time) as interval_start,
+          date_trunc($1, log_time) as interval_start,
           ${aggFunction}(value) as result
         FROM measurement
-        WHERE metric_id = '${metricId}'
-          AND log_time >= '${startDate.toISOString()}'
-          AND log_time <= '${endDate.toISOString()}'
+        WHERE metric_id = $2
+          AND log_time >= $3
+          AND log_time <= $4
           ${warmTierOnly ? 'AND is_warm_tier = true' : ''}
         GROUP BY interval_start
         ORDER BY interval_start
       `;
+          const params = [intervalExpression, metricId, startDate.toISOString(), endDate.toISOString()];
 
-          const result = await withSpan('measurement.aggregate.query', () => queryRunner.query(query));
+          const result = await withSpan('measurement.aggregate.query', () => queryRunner.query(query, params));
           const rows = result ?? [];
           span.setAttribute('measurement.aggregate.row_count', rows.length);
 
