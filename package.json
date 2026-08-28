@@ -1,6 +1,6 @@
 {
   "name": "metric-server",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Metric Server for storing and managing metrics with PostgreSQL partitioning",
   "author": "",
   "private": true,
