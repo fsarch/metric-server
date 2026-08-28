@@ -4,6 +4,7 @@ import { Repository, MoreThan, LessThan, Between, DataSource, In } from 'typeorm
 import { ConflictException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
+import { withSpan } from '@fsarch/server/tracing';
 import { Measurement } from '../../database/entities/measurement.entity.js';
 import { MeasurementPartition } from '../../database/entities/measurement-partition.entity.js';
 import { PartitionService } from '../../services/partition.service.js';
@@ -59,55 +60,70 @@ export class MeasurementService {
       return [];
     }
 
-    // Use cache for partition info to minimize database queries
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    
-    try {
-      // Prepare all measurements and ensure partitions exist (with caching)
-      const measurements: Measurement[] = [];
-      for (const dto of dtos) {
-        const logTime = new Date(dto.logTime);
-        
-        // Get partition info with caching (ensures partition exists and returns isWarmTier)
-        const { isWarmTier: partitionIsWarmTier } = await this.ensurePartitionAndGetInfo(logTime);
-        const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partitionIsWarmTier;
-        
-        const measurement = this.measurementRepository.create({
-          metricId: dto.metricId,
-          logTime,
-          value: dto.value,
-          meta: dto.meta ?? null,
-          isWarmTier,
-        });
-        measurements.push(measurement);
-      }
-      
-      // Bulk insert all measurements in a single query
-      await queryRunner.manager.insert(Measurement, measurements);
-      
-      await queryRunner.commitTransaction();
-      
-      // Return the input DTOs as confirmation (with metricId and logTime)
-      // We don't need to fetch from DB since we already have the data
-      return measurements;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      
-      // Handle unique constraint violation for bulk insert
-      if (error.code === '23505' || error.message?.includes('duplicate key value violates unique constraint')) {
-        // Extract duplicate keys from error message if possible
-        const match = error.message?.match(/key \(([^)]+)\)/);
-        const constraint = match ? match[1] : 'measurement_pkey';
-        throw new ConflictException(
-          `Duplicate measurement(s) found. A measurement with the same metricId and logTime already exists. Constraint: ${constraint}`,
-        );
-      }
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
+    return withSpan(
+      'measurement.create-bulk',
+      async (span) => {
+        // Use cache for partition info to minimize database queries
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+          // Prepare all measurements and ensure partitions exist (with caching)
+          const measurements: Measurement[] = await withSpan(
+            'measurement.create-bulk.ensure-partitions',
+            async () => {
+              const prepared: Measurement[] = [];
+              for (const dto of dtos) {
+                const logTime = new Date(dto.logTime);
+
+                // Get partition info with caching (ensures partition exists and returns isWarmTier)
+                const { isWarmTier: partitionIsWarmTier } = await this.ensurePartitionAndGetInfo(logTime);
+                const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partitionIsWarmTier;
+
+                const measurement = this.measurementRepository.create({
+                  metricId: dto.metricId,
+                  logTime,
+                  value: dto.value,
+                  meta: dto.meta ?? null,
+                  isWarmTier,
+                });
+                prepared.push(measurement);
+              }
+              return prepared;
+            },
+          );
+
+          // Bulk insert all measurements in a single query
+          await withSpan('measurement.create-bulk.insert', () =>
+            queryRunner.manager.insert(Measurement, measurements),
+          );
+
+          await queryRunner.commitTransaction();
+          span.setAttribute('measurement.inserted_count', measurements.length);
+
+          // Return the input DTOs as confirmation (with metricId and logTime)
+          // We don't need to fetch from DB since we already have the data
+          return measurements;
+        } catch (error) {
+          await queryRunner.rollbackTransaction();
+
+          // Handle unique constraint violation for bulk insert
+          if (error.code === '23505' || error.message?.includes('duplicate key value violates unique constraint')) {
+            // Extract duplicate keys from error message if possible
+            const match = error.message?.match(/key \(([^)]+)\)/);
+            const constraint = match ? match[1] : 'measurement_pkey';
+            throw new ConflictException(
+              `Duplicate measurement(s) found. A measurement with the same metricId and logTime already exists. Constraint: ${constraint}`,
+            );
+          }
+          throw error;
+        } finally {
+          await queryRunner.release();
+        }
+      },
+      { attributes: { 'measurement.count': dtos.length } },
+    );
   }
 
   async queryMeasurementsByMetric(
@@ -183,18 +199,21 @@ export class MeasurementService {
     const startDate = new Date(startTime);
     const endDate = new Date(endTime);
 
-    // Build the date truncation expression based on interval
-    const intervalExpression = this.getPostgresIntervalExpression(interval);
+    return withSpan(
+      'measurement.aggregate',
+      async (span) => {
+        // Build the date truncation expression based on interval
+        const intervalExpression = this.getPostgresIntervalExpression(interval);
 
-    // Build the aggregation function based on the requested aggregation
-    const aggFunction = this.getPostgresAggregationFunction(aggregation);
+        // Build the aggregation function based on the requested aggregation
+        const aggFunction = this.getPostgresAggregationFunction(aggregation);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    try {
-      await queryRunner.connect();
+        const queryRunner = this.dataSource.createQueryRunner();
+        try {
+          await queryRunner.connect();
 
-      const query = `
-        SELECT 
+          const query = `
+        SELECT
           date_trunc('${intervalExpression}', log_time) as interval_start,
           ${aggFunction}(value) as result
         FROM measurement
@@ -206,59 +225,70 @@ export class MeasurementService {
         ORDER BY interval_start
       `;
 
-      const result = await queryRunner.query(query);
-      const rows = result ?? [];
+          const result = await withSpan('measurement.aggregate.query', () => queryRunner.query(query));
+          const rows = result ?? [];
+          span.setAttribute('measurement.aggregate.row_count', rows.length);
 
-      const aggregated: Array<{ startTime: string; endTime: string; value: number }> = [];
-      for (const row of rows) {
-        const intervalStart = new Date(row.interval_start);
+          const aggregated: Array<{ startTime: string; endTime: string; value: number }> = [];
+          for (const row of rows) {
+            const intervalStart = new Date(row.interval_start);
 
-        // Calculate end time based on interval
-        let intervalEnd: Date;
-        let startTimeStr: string;
-        let endTimeStr: string;
+            // Calculate end time based on interval
+            let intervalEnd: Date;
+            let startTimeStr: string;
+            let endTimeStr: string;
 
-        if (interval === 'hour') {
-          intervalEnd = new Date(intervalStart);
-          intervalEnd.setUTCHours(intervalStart.getUTCHours() + 1);
-          startTimeStr = intervalStart.toISOString().split(':')[0] + ':00:00';
-          endTimeStr = intervalEnd.toISOString().split(':')[0] + ':00:00';
-        } else if (interval === 'day') {
-          intervalEnd = new Date(intervalStart);
-          intervalEnd.setUTCDate(intervalStart.getUTCDate() + 1);
-          startTimeStr = intervalStart.toISOString().split('T')[0];
-          endTimeStr = intervalEnd.toISOString().split('T')[0];
-        } else if (interval === 'week') {
-          intervalEnd = new Date(intervalStart);
-          intervalEnd.setUTCDate(intervalStart.getUTCDate() + 7);
-          startTimeStr = intervalStart.toISOString().split('T')[0];
-          endTimeStr = intervalEnd.toISOString().split('T')[0];
-        } else if (interval === 'month') {
-          intervalEnd = new Date(intervalStart);
-          intervalEnd.setUTCMonth(intervalStart.getUTCMonth() + 1);
-          const startYear = intervalStart.getUTCFullYear();
-          const startMonth = String(intervalStart.getUTCMonth() + 1).padStart(2, '0');
-          const endYear = intervalEnd.getUTCFullYear();
-          const endMonth = String(intervalEnd.getUTCMonth() + 1).padStart(2, '0');
-          startTimeStr = `${startYear}-${startMonth}-01`;
-          endTimeStr = `${endYear}-${endMonth}-01`;
-        } else {
-          // Default: use the interval_start as both start and end
-          startTimeStr = intervalStart.toISOString();
-          endTimeStr = intervalStart.toISOString();
+            if (interval === 'hour') {
+              intervalEnd = new Date(intervalStart);
+              intervalEnd.setUTCHours(intervalStart.getUTCHours() + 1);
+              startTimeStr = intervalStart.toISOString().split(':')[0] + ':00:00';
+              endTimeStr = intervalEnd.toISOString().split(':')[0] + ':00:00';
+            } else if (interval === 'day') {
+              intervalEnd = new Date(intervalStart);
+              intervalEnd.setUTCDate(intervalStart.getUTCDate() + 1);
+              startTimeStr = intervalStart.toISOString().split('T')[0];
+              endTimeStr = intervalEnd.toISOString().split('T')[0];
+            } else if (interval === 'week') {
+              intervalEnd = new Date(intervalStart);
+              intervalEnd.setUTCDate(intervalStart.getUTCDate() + 7);
+              startTimeStr = intervalStart.toISOString().split('T')[0];
+              endTimeStr = intervalEnd.toISOString().split('T')[0];
+            } else if (interval === 'month') {
+              intervalEnd = new Date(intervalStart);
+              intervalEnd.setUTCMonth(intervalStart.getUTCMonth() + 1);
+              const startYear = intervalStart.getUTCFullYear();
+              const startMonth = String(intervalStart.getUTCMonth() + 1).padStart(2, '0');
+              const endYear = intervalEnd.getUTCFullYear();
+              const endMonth = String(intervalEnd.getUTCMonth() + 1).padStart(2, '0');
+              startTimeStr = `${startYear}-${startMonth}-01`;
+              endTimeStr = `${endYear}-${endMonth}-01`;
+            } else {
+              // Default: use the interval_start as both start and end
+              startTimeStr = intervalStart.toISOString();
+              endTimeStr = intervalStart.toISOString();
+            }
+
+            aggregated.push({
+              startTime: startTimeStr,
+              endTime: endTimeStr,
+              value: parseFloat(row.result),
+            });
+          }
+
+          return aggregated;
+        } finally {
+          await queryRunner.release();
         }
-
-        aggregated.push({
-          startTime: startTimeStr,
-          endTime: endTimeStr,
-          value: parseFloat(row.result),
-        });
-      }
-
-      return aggregated;
-    } finally {
-      await queryRunner.release();
-    }
+      },
+      {
+        attributes: {
+          'metric.id': metricId,
+          'aggregation.interval': interval,
+          'aggregation.function': aggregation,
+          'aggregation.warm_tier_only': warmTierOnly,
+        },
+      },
+    );
   }
 
   /**

@@ -42,4 +42,4 @@ COPY --from=deps --chown=node:node /usr/src/app/node_modules ./node_modules
 
 USER node
 
-CMD ["node", "./dist/main.js"]
+CMD ["node", "--import", "@fsarch/server/register", "./dist/main.js"]
