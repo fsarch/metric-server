@@ -1,14 +1,19 @@
-import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Not, IsNull, Repository } from 'typeorm';
-import { MetricType } from '../../database/entities/metric-type.entity.js';
-import { Metric } from '../../database/entities/metric.entity.js';
-import { Measurement } from '../../database/entities/measurement.entity.js';
-import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
-import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
-import { MetricStatusDto } from '../../models/metric/MetricStatusDto.js';
 import crypto from 'node:crypto';
-import { type HardDeleteContext, OnHardDelete } from "@fsarch/server/deletion";
+import { type HardDeleteContext, OnHardDelete } from '@fsarch/server/deletion';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, LessThan, Not, Repository } from 'typeorm';
+import { Measurement } from '../../database/entities/measurement.entity.js';
+import { Metric } from '../../database/entities/metric.entity.js';
+import { MetricType } from '../../database/entities/metric-type.entity.js';
+import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
+import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
+import { MetricStatusDto } from '../../models/metric/MetricStatusDto.js';
 
 @Injectable()
 export class MetricService {
@@ -160,7 +165,10 @@ export class MetricService {
     });
   }
 
-  async countMetrics(metricTypeId?: string, isDeleted?: boolean): Promise<number> {
+  async countMetrics(
+    metricTypeId?: string,
+    isDeleted?: boolean,
+  ): Promise<number> {
     const query: Record<string, unknown> = {};
 
     if (metricTypeId) {
@@ -198,7 +206,9 @@ export class MetricService {
     });
 
     if (!metric) {
-      throw new NotFoundException(`Metric with externalId ${externalId} not found`);
+      throw new NotFoundException(
+        `Metric with externalId ${externalId} not found`,
+      );
     }
 
     return metric;
@@ -261,6 +271,6 @@ export class MetricService {
 
     await this.metricRepository.delete({
       deletionTime: LessThan(cutOffDate),
-    })
+    });
   }
 }

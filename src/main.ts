@@ -1,7 +1,7 @@
-import { AppModule } from './app.module.js';
 import { FsArchAppBuilder } from '@fsarch/server';
-import { DATABASE_OPTIONS } from './database/index.js';
+import { AppModule } from './app.module.js';
 import { Role } from './constants/role.enum.js';
+import { DATABASE_OPTIONS } from './database/index.js';
 
 async function bootstrap() {
   const app = await new FsArchAppBuilder(AppModule, {

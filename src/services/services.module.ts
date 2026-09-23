@@ -1,8 +1,8 @@
+import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CacheModule } from '@nestjs/cache-manager';
-import { PartitionService } from './partition.service.js';
 import { MeasurementPartition } from '../database/entities/measurement-partition.entity.js';
+import { PartitionService } from './partition.service.js';
 
 // Partition cache configuration
 // No TTL - partitions are static and rarely change

@@ -31,7 +31,10 @@ export class Metric {
   })
   metricTypeId: string;
 
-  @ManyToOne(() => MetricType, (metricType) => metricType.id)
+  @ManyToOne(
+    () => MetricType,
+    (metricType) => metricType.id,
+  )
   @JoinColumn({ name: 'metric_type_id' })
   metricType: MetricType;
 

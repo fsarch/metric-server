@@ -304,12 +304,12 @@ partition:
 
 ### TypeScript
 - Strict mode enabled
-- All code must pass `npm run build` without errors
+- All code must pass `pnpm run build` without errors
 - No TypeScript errors allowed in committed code
 
 ### Code Style
 - Follow existing code style in the repository
-- Use Prettier for formatting
+- Use Biome for formatting
 - Match indentation and naming conventions
 
 ---

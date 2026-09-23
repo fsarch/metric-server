@@ -1,15 +1,21 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThan, Between, DataSource, In } from 'typeorm';
-import { ConflictException } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { withSpan } from '@fsarch/server/tracing';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import type { Cache } from 'cache-manager';
+import {
+  Between,
+  DataSource,
+  In,
+  LessThan,
+  MoreThan,
+  Repository,
+} from 'typeorm';
 import { Measurement } from '../../database/entities/measurement.entity.js';
 import { MeasurementPartition } from '../../database/entities/measurement-partition.entity.js';
-import { PartitionService } from '../../services/partition.service.js';
-import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
 import { AggregateMeasurementsDto } from '../../models/measurement/AggregateMeasurementsDto.js';
+import { CreateMeasurementDto } from '../../models/measurement/CreateMeasurementDto.js';
+import { PartitionService } from '../../services/partition.service.js';
 
 @Injectable()
 export class MeasurementService {
@@ -31,8 +37,10 @@ export class MeasurementService {
     const logTime = new Date(dto.logTime);
 
     // Ensure partition exists and get partition info (with caching)
-    const { partition, isWarmTier: partitionIsWarmTier } = await this.ensurePartitionAndGetInfo(logTime);
-    const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partitionIsWarmTier;
+    const { partition, isWarmTier: partitionIsWarmTier } =
+      await this.ensurePartitionAndGetInfo(logTime);
+    const isWarmTier =
+      dto.isWarmTier !== undefined ? dto.isWarmTier : partitionIsWarmTier;
 
     const measurement = this.measurementRepository.create({
       metricId,
@@ -46,7 +54,12 @@ export class MeasurementService {
       return await this.measurementRepository.save(measurement);
     } catch (error) {
       // Handle unique constraint violation (duplicate metric_id + log_time)
-      if (error.code === '23505' || error.message?.includes('duplicate key value violates unique constraint')) {
+      if (
+        error.code === '23505' ||
+        error.message?.includes(
+          'duplicate key value violates unique constraint',
+        )
+      ) {
         throw new ConflictException(
           `Measurement with metricId ${metricId} and logTime ${logTime.toISOString()} already exists`,
         );
@@ -55,7 +68,9 @@ export class MeasurementService {
     }
   }
 
-  async createMeasurements(dtos: CreateMeasurementDto[]): Promise<Measurement[]> {
+  async createMeasurements(
+    dtos: CreateMeasurementDto[],
+  ): Promise<Measurement[]> {
     if (dtos.length === 0) {
       return [];
     }
@@ -78,8 +93,12 @@ export class MeasurementService {
                 const logTime = new Date(dto.logTime);
 
                 // Get partition info with caching (ensures partition exists and returns isWarmTier)
-                const { isWarmTier: partitionIsWarmTier } = await this.ensurePartitionAndGetInfo(logTime);
-                const isWarmTier = dto.isWarmTier !== undefined ? dto.isWarmTier : partitionIsWarmTier;
+                const { isWarmTier: partitionIsWarmTier } =
+                  await this.ensurePartitionAndGetInfo(logTime);
+                const isWarmTier =
+                  dto.isWarmTier !== undefined
+                    ? dto.isWarmTier
+                    : partitionIsWarmTier;
 
                 const measurement = this.measurementRepository.create({
                   metricId: dto.metricId,
@@ -109,7 +128,12 @@ export class MeasurementService {
           await queryRunner.rollbackTransaction();
 
           // Handle unique constraint violation for bulk insert
-          if (error.code === '23505' || error.message?.includes('duplicate key value violates unique constraint')) {
+          if (
+            error.code === '23505' ||
+            error.message?.includes(
+              'duplicate key value violates unique constraint',
+            )
+          ) {
             // Extract duplicate keys from error message if possible
             const match = error.message?.match(/key \(([^)]+)\)/);
             const constraint = match ? match[1] : 'measurement_pkey';
@@ -158,12 +182,14 @@ export class MeasurementService {
       }
     }
 
-    const [measurements, total] = await this.measurementRepository.findAndCount({
-      where,
-      order: { logTime: 'ASC' },
-      take: limit,
-      skip: offset,
-    });
+    const [measurements, total] = await this.measurementRepository.findAndCount(
+      {
+        where,
+        order: { logTime: 'ASC' },
+        take: limit,
+        skip: offset,
+      },
+    );
 
     return { data: measurements, total };
   }
@@ -192,9 +218,7 @@ export class MeasurementService {
   async aggregateMeasurementsByMetric(
     metricId: string,
     dto: AggregateMeasurementsDto,
-  ): Promise<
-    Array<{ startTime: string; endTime: string; value: number }>
-  > {
+  ): Promise<Array<{ startTime: string; endTime: string; value: number }>> {
     const { startTime, endTime, interval, aggregation, warmTierOnly } = dto;
     const startDate = new Date(startTime);
     const endDate = new Date(endTime);
@@ -229,13 +253,24 @@ export class MeasurementService {
         GROUP BY interval_start
         ORDER BY interval_start
       `;
-          const params = [intervalExpression, metricId, startDate.toISOString(), endDate.toISOString()];
+          const params = [
+            intervalExpression,
+            metricId,
+            startDate.toISOString(),
+            endDate.toISOString(),
+          ];
 
-          const result = await withSpan('measurement.aggregate.query', () => queryRunner.query(query, params));
+          const result = await withSpan('measurement.aggregate.query', () =>
+            queryRunner.query(query, params),
+          );
           const rows = result ?? [];
           span.setAttribute('measurement.aggregate.row_count', rows.length);
 
-          const aggregated: Array<{ startTime: string; endTime: string; value: number }> = [];
+          const aggregated: Array<{
+            startTime: string;
+            endTime: string;
+            value: number;
+          }> = [];
           for (const row of rows) {
             const intervalStart = new Date(row.interval_start);
 
@@ -247,7 +282,8 @@ export class MeasurementService {
             if (interval === 'hour') {
               intervalEnd = new Date(intervalStart);
               intervalEnd.setUTCHours(intervalStart.getUTCHours() + 1);
-              startTimeStr = intervalStart.toISOString().split(':')[0] + ':00:00';
+              startTimeStr =
+                intervalStart.toISOString().split(':')[0] + ':00:00';
               endTimeStr = intervalEnd.toISOString().split(':')[0] + ':00:00';
             } else if (interval === 'day') {
               intervalEnd = new Date(intervalStart);
@@ -263,9 +299,14 @@ export class MeasurementService {
               intervalEnd = new Date(intervalStart);
               intervalEnd.setUTCMonth(intervalStart.getUTCMonth() + 1);
               const startYear = intervalStart.getUTCFullYear();
-              const startMonth = String(intervalStart.getUTCMonth() + 1).padStart(2, '0');
+              const startMonth = String(
+                intervalStart.getUTCMonth() + 1,
+              ).padStart(2, '0');
               const endYear = intervalEnd.getUTCFullYear();
-              const endMonth = String(intervalEnd.getUTCMonth() + 1).padStart(2, '0');
+              const endMonth = String(intervalEnd.getUTCMonth() + 1).padStart(
+                2,
+                '0',
+              );
               startTimeStr = `${startYear}-${startMonth}-01`;
               endTimeStr = `${endYear}-${endMonth}-01`;
             } else {
@@ -302,26 +343,31 @@ export class MeasurementService {
    * Uses cache-manager to avoid repeated database queries for the same partition.
    * Combines ensurePartitionForDate and getPartitionForDate into a single optimized call.
    */
-  private async ensurePartitionAndGetInfo(logTime: Date): Promise<{ partition: MeasurementPartition | null; isWarmTier: boolean }> {
-    const partitionStart = this.partitionService['getPartitionStartDate'](logTime);
+  private async ensurePartitionAndGetInfo(
+    logTime: Date,
+  ): Promise<{ partition: MeasurementPartition | null; isWarmTier: boolean }> {
+    const partitionStart =
+      this.partitionService['getPartitionStartDate'](logTime);
     const partitionKey = partitionStart.toISOString();
-    
+
     // Check cache first
-    const cached: { partition: MeasurementPartition | null; isWarmTier: boolean } | undefined = await this.cacheManager.get(partitionKey);
+    const cached:
+      | { partition: MeasurementPartition | null; isWarmTier: boolean }
+      | undefined = await this.cacheManager.get(partitionKey);
     if (cached) {
       return cached;
     }
-    
+
     // Ensure partition exists
     await this.partitionService.ensurePartitionForDate(logTime);
-    
+
     // Get partition info
     const partition = await this.partitionService.getPartitionForDate(logTime);
     const isWarmTier = partition?.isWarmTier ?? true;
-    
+
     // Cache the result using cache-manager (no TTL as configured in module)
     await this.cacheManager.set(partitionKey, { partition, isWarmTier });
-    
+
     return { partition, isWarmTier };
   }
 
@@ -371,7 +417,10 @@ export class MeasurementService {
     }
   }
 
-  async getMeasurement(metricId: string, logTime: Date): Promise<Measurement | null> {
+  async getMeasurement(
+    metricId: string,
+    logTime: Date,
+  ): Promise<Measurement | null> {
     return this.measurementRepository.findOne({
       where: {
         metricId,

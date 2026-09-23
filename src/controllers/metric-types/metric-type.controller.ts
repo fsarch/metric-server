@@ -1,24 +1,30 @@
-import {
-  Controller,
-  Post,
-  UseGuards,
-  Body,
-  Param,
-  NotFoundException,
-  Get,
-  Query,
-  Delete,
-} from '@nestjs/common';
-
 import { AuthGuard } from '@fsarch/server/auth';
+import {
+  ApiOkPaginatedResponse,
+  PaginationResultDto,
+} from '@fsarch/server/pagination';
 import { Roles } from '@fsarch/server/uac';
-import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagination';
-import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
-
-import { MetricService } from '../metrics/metric.service.js';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+} from '@nestjs/swagger';
+import { Role } from '../../constants/role.enum.js';
 import { CreateMetricTypeDto } from '../../models/metric/CreateMetricTypeDto.js';
 import { MetricTypeDto } from '../../models/metric/MetricTypeDto.js';
-import { Role } from '../../constants/role.enum.js';
+import { MetricService } from '../metrics/metric.service.js';
 
 @ApiBearerAuth()
 @Controller('metric-types')
@@ -30,7 +36,9 @@ export class MetricTypeController {
   @Roles(Role.manage_metrics)
   @ApiBody({ type: CreateMetricTypeDto })
   @ApiCreatedResponse({ type: MetricTypeDto })
-  async createMetricType(@Body() body: CreateMetricTypeDto): Promise<MetricTypeDto> {
+  async createMetricType(
+    @Body() body: CreateMetricTypeDto,
+  ): Promise<MetricTypeDto> {
     const metricType = await this.metricService.createMetricType(body);
 
     return {

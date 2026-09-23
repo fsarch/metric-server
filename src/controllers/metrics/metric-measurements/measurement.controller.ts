@@ -1,25 +1,31 @@
-import {
-  Controller,
-  Post,
-  UseGuards,
-  Body,
-  Param,
-  NotFoundException,
-  Get,
-  Query,
-} from '@nestjs/common';
-
 import { AuthGuard } from '@fsarch/server/auth';
+import {
+  ApiOkPaginatedResponse,
+  PaginationResultDto,
+} from '@fsarch/server/pagination';
 import { Roles } from '@fsarch/server/uac';
-import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagination';
-import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
-
-import { MeasurementService } from '../../measurements/measurement.service.js';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+} from '@nestjs/swagger';
+import { Role } from '../../../constants/role.enum.js';
+import { AggregatedMeasurementDto } from '../../../models/measurement/AggregatedMeasurementDto.js';
+import { AggregateMeasurementsDto } from '../../../models/measurement/AggregateMeasurementsDto.js';
 import { CreateMeasurementDto } from '../../../models/measurement/CreateMeasurementDto.js';
 import { MeasurementDto } from '../../../models/measurement/MeasurementDto.js';
-import { AggregateMeasurementsDto } from '../../../models/measurement/AggregateMeasurementsDto.js';
-import { AggregatedMeasurementDto } from '../../../models/measurement/AggregatedMeasurementDto.js';
-import { Role } from '../../../constants/role.enum.js';
+import { MeasurementService } from '../../measurements/measurement.service.js';
 
 @ApiBearerAuth()
 @Controller('metrics/:metricId/measurements')
@@ -35,7 +41,10 @@ export class MeasurementController {
     @Param('metricId') metricId: string,
     @Body() body: Omit<CreateMeasurementDto, 'metricId'>,
   ): Promise<MeasurementDto> {
-    const measurement = await this.measurementService.createMeasurement(metricId, body);
+    const measurement = await this.measurementService.createMeasurement(
+      metricId,
+      body,
+    );
 
     return {
       metricId: measurement.metricId,
@@ -55,11 +64,12 @@ export class MeasurementController {
     @Query('limit') limit: number = 100,
     @Query('offset') offset: number = 0,
   ): Promise<PaginationResultDto<MeasurementDto>> {
-    const measurements = await this.measurementService.getLatestMeasurementsByMetric(
-      metricId,
-      limit,
-      true, // warmTierOnly
-    );
+    const measurements =
+      await this.measurementService.getLatestMeasurementsByMetric(
+        metricId,
+        limit,
+        true, // warmTierOnly
+      );
 
     const result: MeasurementDto[] = measurements.map((m) => ({
       metricId: m.metricId,
@@ -93,6 +103,9 @@ export class MeasurementController {
     @Param('metricId') metricId: string,
     @Body() body: AggregateMeasurementsDto,
   ): Promise<AggregatedMeasurementDto[]> {
-    return this.measurementService.aggregateMeasurementsByMetric(metricId, body);
+    return this.measurementService.aggregateMeasurementsByMetric(
+      metricId,
+      body,
+    );
   }
 }

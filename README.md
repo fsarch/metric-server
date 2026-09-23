@@ -112,11 +112,11 @@ Partitions are tracked in the `measurement_partition` table and can be in either
 
 ```bash
 # Development
-npm run start
+pnpm run start
 
 # Production
-npm run build
-npm run start:prod
+pnpm run build
+pnpm run start:prod
 
 # With Docker
 docker build -t metric-server .
@@ -126,12 +126,12 @@ docker run -p 3000:8080 metric-server
 ## Running Migrations
 
 ```bash
-npm run migration:run
+pnpm run migration:run
 ```
 
 ## Testing
 
 ```bash
-npm run test
-npm run test:e2e
+pnpm run test
+pnpm run test:e2e
 ```

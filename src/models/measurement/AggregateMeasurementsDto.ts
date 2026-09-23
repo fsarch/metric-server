@@ -1,5 +1,5 @@
-import { IsDateString, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsDateString, IsEnum, IsOptional } from 'class-validator';
 
 export type AggregationType = 'avg' | 'sum' | 'min' | 'max' | 'count';
 export type IntervalType = 'hour' | 'day' | 'week' | 'month';

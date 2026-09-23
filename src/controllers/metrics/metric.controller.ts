@@ -1,26 +1,34 @@
-import {
-  Controller,
-  Post,
-  UseGuards,
-  Body,
-  Param,
-  NotFoundException,
-  Get,
-  Query,
-  Delete,
-  ParseBoolPipe, DefaultValuePipe,
-} from '@nestjs/common';
-
 import { AuthGuard } from '@fsarch/server/auth';
+import {
+  ApiOkPaginatedResponse,
+  PaginationResultDto,
+} from '@fsarch/server/pagination';
 import { Roles } from '@fsarch/server/uac';
-import { PaginationResultDto, ApiOkPaginatedResponse } from '@fsarch/server/pagination';
-import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
-
-import { MetricService } from './metric.service.js';
+import {
+  Body,
+  Controller,
+  DefaultValuePipe,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  ParseBoolPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { Role } from '../../constants/role.enum.js';
 import { CreateMetricDto } from '../../models/metric/CreateMetricDto.js';
 import { MetricDto } from '../../models/metric/MetricDto.js';
 import { MetricStatusDto } from '../../models/metric/MetricStatusDto.js';
-import { Role } from '../../constants/role.enum.js';
+import { MetricService } from './metric.service.js';
 
 @ApiBearerAuth()
 @Controller('metrics')
@@ -55,7 +63,8 @@ export class MetricController {
     @Query('metricTypeId') metricTypeId?: string,
     @Query('page') page: number = 1,
     @Query('pageSize') pageSize: number = 25,
-    @Query('isDeleted', new DefaultValuePipe(false), ParseBoolPipe) isDeleted?: boolean,
+    @Query('isDeleted', new DefaultValuePipe(false), ParseBoolPipe)
+    isDeleted?: boolean,
   ): Promise<PaginationResultDto<MetricDto>> {
     const skip = (page - 1) * pageSize;
     const [metrics, total] = await Promise.all([

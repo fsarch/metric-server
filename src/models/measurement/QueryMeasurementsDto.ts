@@ -1,4 +1,4 @@
-import { IsUUID, IsDateString, IsOptional, IsNumber } from 'class-validator';
+import { IsDateString, IsNumber, IsOptional, IsUUID } from 'class-validator';
 
 export class QueryMeasurementsDto {
   @IsUUID()

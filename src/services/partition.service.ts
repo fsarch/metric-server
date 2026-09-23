@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, LessThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, LessThan, Repository } from 'typeorm';
 import { MeasurementPartition } from '../database/entities/measurement-partition.entity.js';
 
 @Injectable()
@@ -48,14 +48,19 @@ export class PartitionService {
     }
 
     // Check if the PostgreSQL partition already exists
-    const partitionName = this.generatePartitionName(partitionStart, partitionEnd);
-    const postgresPartitionExists = await this.postgresPartitionExists(partitionName);
+    const partitionName = this.generatePartitionName(
+      partitionStart,
+      partitionEnd,
+    );
+    const postgresPartitionExists =
+      await this.postgresPartitionExists(partitionName);
 
     if (postgresPartitionExists) {
       // Partition exists in PostgreSQL but not in our tracking table
       // Add it to our tracking table
       const now = new Date();
-      const isWarmTier = partitionEnd >= this.getDateDaysAgo(now, this.warmTierRetentionDays);
+      const isWarmTier =
+        partitionEnd >= this.getDateDaysAgo(now, this.warmTierRetentionDays);
 
       const newPartition = this.partitionRepository.create({
         startDate: partitionStart,
@@ -72,10 +77,15 @@ export class PartitionService {
 
     // Determine if this partition should be warm tier
     const now = new Date();
-    const isWarmTier = partitionEnd >= this.getDateDaysAgo(now, this.warmTierRetentionDays);
+    const isWarmTier =
+      partitionEnd >= this.getDateDaysAgo(now, this.warmTierRetentionDays);
 
     // Create the PostgreSQL partition first
-    await this.createPostgresPartition(partitionName, partitionStart, partitionEnd);
+    await this.createPostgresPartition(
+      partitionName,
+      partitionStart,
+      partitionEnd,
+    );
 
     // Then create the partition record in our tracking table
     const newPartition = this.partitionRepository.create({
@@ -94,7 +104,9 @@ export class PartitionService {
   /**
    * Checks if a PostgreSQL partition exists
    */
-  private async postgresPartitionExists(partitionName: string): Promise<boolean> {
+  private async postgresPartitionExists(
+    partitionName: string,
+  ): Promise<boolean> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     try {
@@ -160,7 +172,8 @@ export class PartitionService {
    * Generates a partition name based on start and end dates
    */
   private generatePartitionName(startDate: Date, endDate: Date): string {
-    const formatDate = (date: Date) => date.toISOString().split('T')[0].replace(/-/g, '');
+    const formatDate = (date: Date) =>
+      date.toISOString().split('T')[0].replace(/-/g, '');
     return `${formatDate(startDate)}_${formatDate(endDate)}`;
   }
 
@@ -174,7 +187,9 @@ export class PartitionService {
     const daysSinceEpoch = Math.floor(
       startDate.getTime() / (24 * 60 * 60 * 1000),
     );
-    const partitionStartDays = Math.floor(daysSinceEpoch / this.partitionSizeDays) * this.partitionSizeDays;
+    const partitionStartDays =
+      Math.floor(daysSinceEpoch / this.partitionSizeDays) *
+      this.partitionSizeDays;
     startDate.setTime(partitionStartDays * 24 * 60 * 60 * 1000);
     return startDate;
   }
@@ -200,7 +215,10 @@ export class PartitionService {
   /**
    * Ensures partitions exist for a range of dates
    */
-  async ensurePartitionsForRange(startDate: Date, endDate: Date): Promise<void> {
+  async ensurePartitionsForRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<void> {
     const currentDate = new Date(startDate);
     const partitionEnd = new Date(endDate);
 
@@ -213,7 +231,9 @@ export class PartitionService {
   /**
    * Gets the partition for a given date
    */
-  async getPartitionForDate(logTime: Date): Promise<MeasurementPartition | null> {
+  async getPartitionForDate(
+    logTime: Date,
+  ): Promise<MeasurementPartition | null> {
     const partitionStart = this.getPartitionStartDate(logTime);
     const partitionEnd = this.getPartitionEndDate(partitionStart);
 
@@ -261,7 +281,10 @@ export class PartitionService {
    */
   async updatePartitionTiers(): Promise<void> {
     const now = new Date();
-    const coldTierThreshold = this.getDateDaysAgo(now, this.warmTierRetentionDays);
+    const coldTierThreshold = this.getDateDaysAgo(
+      now,
+      this.warmTierRetentionDays,
+    );
 
     // Find partitions that should be cold tier
     const partitionsToUpdate = await this.partitionRepository.find({

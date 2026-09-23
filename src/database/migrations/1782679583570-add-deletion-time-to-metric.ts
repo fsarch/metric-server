@@ -1,7 +1,14 @@
-import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
+import {
+  MigrationInterface,
+  QueryRunner,
+  TableColumn,
+  TableIndex,
+} from 'typeorm';
 import { getDataType } from './utils/data-type.mapper.js';
 
-export class AddDeletionTimeToMetric1782679583570 implements MigrationInterface {
+export class AddDeletionTimeToMetric1782679583570
+  implements MigrationInterface
+{
   name = 'AddDeletionTimeToMetric1782679583570';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -24,7 +31,10 @@ export class AddDeletionTimeToMetric1782679583570 implements MigrationInterface 
 
     // Drop existing indices on external_id for metric table
     await queryRunner.dropIndex('metric', 'idx__metric__external_id');
-    await queryRunner.dropIndex('metric', 'idx__metric__metric_type_id_external_id');
+    await queryRunner.dropIndex(
+      'metric',
+      'idx__metric__metric_type_id_external_id',
+    );
 
     // Create new partial indices that exclude deleted entries
     // Index for external_id only (unique for non-null, non-deleted)
@@ -70,7 +80,10 @@ export class AddDeletionTimeToMetric1782679583570 implements MigrationInterface 
 
     // Drop the new indices first
     await queryRunner.dropIndex('metric', 'idx__metric__deletion_time');
-    await queryRunner.dropIndex('metric', 'idx__metric__metric_type_id_external_id');
+    await queryRunner.dropIndex(
+      'metric',
+      'idx__metric__metric_type_id_external_id',
+    );
     await queryRunner.dropIndex('metric', 'idx__metric__external_id');
 
     // Restore original indices

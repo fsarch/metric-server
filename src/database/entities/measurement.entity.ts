@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryColumn,
-} from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { Metric } from './metric.entity.js';
 
 @Entity({
@@ -23,7 +17,10 @@ export class Measurement {
   })
   logTime: Date;
 
-  @ManyToOne(() => Metric, (metric) => metric.id)
+  @ManyToOne(
+    () => Metric,
+    (metric) => metric.id,
+  )
   @JoinColumn({ name: 'metric_id' })
   metric: Metric;
 

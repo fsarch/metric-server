@@ -1,5 +1,11 @@
-import { IsUUID, IsDateString, IsNumber, IsOptional, ValidateIf } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  ValidateIf,
+} from 'class-validator';
 
 export class CreateMeasurementDto {
   @ApiProperty({
