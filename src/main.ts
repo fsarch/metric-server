@@ -1,22 +1,16 @@
 import { FsArchAppBuilder } from '@fsarch/server';
-import { AppModule } from './app.module.js';
-import { Role } from './constants/role.enum.js';
-import { DATABASE_OPTIONS } from './database/index.js';
+import { descriptor } from './lib/index.js';
 
 async function bootstrap() {
-  const app = await new FsArchAppBuilder(AppModule, {
+  const app = await new FsArchAppBuilder(descriptor.module.register(), {
     name: 'Metric-Server',
     version: '1.0.0',
   })
-    .addSwagger({
-      title: 'Metric-Server',
-      description: 'The Metric-Server API for storing and querying metrics',
-      version: '1.0',
-    })
+    .addSwagger(descriptor.swagger)
     .enableAuth()
-    .enableUac(Object.values(Role))
+    .enableUac(descriptor.uac.roles)
     .enableSoftDeletion()
-    .setDatabase(DATABASE_OPTIONS)
+    .setDatabase({ entities: descriptor.entities, migrations: descriptor.migrations })
     .build();
 
   await app.listen(process.env.PORT ?? 8080);
