@@ -1,6 +1,6 @@
 {
   "name": "@fsarch/metric-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Metric Server for storing and managing metrics with PostgreSQL partitioning",
   "author": "",
   "license": "UNLICENSED",
