@@ -1,11 +1,22 @@
 {
-  "name": "metric-server",
+  "name": "@fsarch/metric-server",
   "version": "0.1.0",
   "description": "Metric Server for storing and managing metrics with PostgreSQL partitioning",
   "author": "",
-  "private": true,
   "license": "UNLICENSED",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/lib/index.js",
+      "types": "./dist/lib/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "fsarch-server build",
     "format": "biome format --write src",
@@ -26,7 +37,7 @@
     "postversion": "git push && git push --tags"
   },
   "dependencies": {
-    "@fsarch/server": "^0.5.1",
+    "@fsarch/server": "^0.5.2",
     "@nestjs/cache-manager": "^12.0.0",
     "@nestjs/common": "^12.1.0",
     "@nestjs/config": "^12.0.1",
@@ -71,5 +82,9 @@
     "unplugin-swc": "^2.0.0",
     "vitest": "^5.0.1"
   },
-  "packageManager": "pnpm@12.5.1+sha512.e3f305bc784a2bc89f5ad3b6138889470fae8d2af5f36b61216ec91c2c3d64089775f9de38aac331044ea40f245cb0d5666392dfdf65824e1907ef6a2c62de5f"
+  "packageManager": "pnpm@12.5.1+sha512.e3f305bc784a2bc89f5ad3b6138889470fae8d2af5f36b61216ec91c2c3d64089775f9de38aac331044ea40f245cb0d5666392dfdf65824e1907ef6a2c62de5f",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fsarch/metric-server.git"
+  }
 }
